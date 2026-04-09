@@ -43,10 +43,7 @@ Get-ChildItem -Recurse -Force -Directory ".\\backend" |
   ForEach-Object { Remove-IfExists $_.FullName }
 
 # Release artifacts
-if (Test-Path -LiteralPath ".\\release") {
-  Get-ChildItem -Force -File ".\\release" -Filter "*.zip" | ForEach-Object {
-    Remove-Item -Force -LiteralPath $_.FullName -ErrorAction SilentlyContinue
-  }
-}
+Remove-IfExists ".\\release_tmp"
+Remove-IfExists ".\\release"
 
 Write-Output "Cleaned build artifacts. (Use -All to also remove frontend/node_modules.)"

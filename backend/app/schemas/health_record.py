@@ -1,6 +1,6 @@
 from typing import Optional
 from datetime import date, datetime
-from pydantic import BaseModel, Field, field_validator
+from pydantic import BaseModel, Field, field_validator, model_validator
 
 
 class HealthRecordCreate(BaseModel):
@@ -32,6 +32,21 @@ class HealthRecordUpdate(BaseModel):
     exercise_type: Optional[str] = Field(default=None, max_length=100)
     steps: Optional[int] = Field(default=None, ge=0)
     note: Optional[str] = None
+
+    @model_validator(mode="after")
+    def disallow_explicit_null_for_required_fields(self):
+        """Distinguish 'field not provided' vs 'field provided as null'.
+
+        For non-nullable DB columns, explicit null in an update payload must be rejected
+        with a 422, rather than failing at commit time.
+        """
+
+        fields_set = getattr(self, "__pydantic_fields_set__", set())
+        non_nullable = ("record_date", "weight", "sleep_hours", "calories", "exercise_minutes")
+        for field in non_nullable:
+            if field in fields_set and getattr(self, field) is None:
+                raise ValueError(f"{field} cannot be null")
+        return self
 
     @field_validator("weight")
     @classmethod

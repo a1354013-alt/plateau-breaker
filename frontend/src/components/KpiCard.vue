@@ -46,7 +46,9 @@ const formattedValue = computed(() => {
   box-shadow: var(--shadow-sm);
   transition: box-shadow 0.2s;
 }
-.kpi-card:hover { box-shadow: var(--shadow-md); }
+.kpi-card:hover {
+  box-shadow: var(--shadow-md);
+}
 .kpi-header {
   display: flex;
   align-items: center;
@@ -62,7 +64,9 @@ const formattedValue = computed(() => {
   justify-content: center;
   flex-shrink: 0;
 }
-.kpi-icon i { font-size: 1rem; }
+.kpi-icon i {
+  font-size: 1rem;
+}
 .kpi-label {
   font-size: 0.8rem;
   font-weight: 600;
@@ -77,12 +81,22 @@ const formattedValue = computed(() => {
   line-height: 1.1;
   margin-bottom: 0.3rem;
 }
-.kpi-empty { color: #cbd5e1; }
+.kpi-empty {
+  color: #cbd5e1;
+}
 .kpi-sub {
   font-size: 0.8rem;
   color: var(--color-text-secondary);
+  white-space: pre-line;
 }
-.kpi-sub.positive { color: #16a34a; }
-.kpi-sub.negative { color: #dc2626; }
-.kpi-sub.neutral  { color: var(--color-text-secondary); }
+.kpi-sub.positive {
+  color: #16a34a;
+}
+.kpi-sub.negative {
+  color: #dc2626;
+}
+.kpi-sub.neutral {
+  color: var(--color-text-secondary);
+}
 </style>
+

@@ -1,16 +1,13 @@
-﻿import os
+from __future__ import annotations
+
+import os
+from contextlib import asynccontextmanager
 
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 
 from app.api import analytics_router, health_records_router
 from app.database import create_db_and_tables
-
-app = FastAPI(
-    title="PlateauBreaker API",
-    description="Rule-based health analytics backend for weight plateau analysis",
-    version="1.0.0",
-)
 
 
 def _parse_cors_origins(value: str | None) -> list[str]:
@@ -21,6 +18,20 @@ def _parse_cors_origins(value: str | None) -> list[str]:
 
     origins = [o.strip() for o in value.split(",") if o.strip()]
     return origins or ["http://localhost:5173", "http://127.0.0.1:5173"]
+
+
+@asynccontextmanager
+async def lifespan(_: FastAPI):
+    create_db_and_tables()
+    yield
+
+
+app = FastAPI(
+    title="PlateauBreaker API",
+    description="Rule-based health analytics backend for weight plateau analysis",
+    version="1.0.0",
+    lifespan=lifespan,
+)
 
 
 cors_origins = _parse_cors_origins(os.getenv("CORS_ORIGINS"))
@@ -43,11 +54,6 @@ app.include_router(health_records_router)
 app.include_router(analytics_router)
 
 
-@app.on_event("startup")
-def on_startup():
-    create_db_and_tables()
-
-
 @app.get("/")
 def root():
     return {
@@ -60,3 +66,4 @@ def root():
 @app.get("/health")
 def health_check():
     return {"status": "ok"}
+

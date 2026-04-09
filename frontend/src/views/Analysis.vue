@@ -120,7 +120,7 @@
               <div class="rule-result">
                 <span v-if="analyticsStore.plateauData?.rule_a === true" class="result-plateau">Plateau Detected</span>
                 <span v-else-if="analyticsStore.plateauData?.rule_a === false" class="result-clear">No Plateau</span>
-                <span v-else class="result-na">Insufficient data (need 14+ days)</span>
+                <span v-else class="result-na">Insufficient data (need 5+ days in the previous window)</span>
               </div>
             </div>
           </div>

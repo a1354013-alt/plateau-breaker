@@ -31,6 +31,8 @@ def list_health_records(
     end_date: Optional[date] = Query(default=None),
     session: Session = Depends(get_session),
 ):
+    if start_date and end_date and start_date > end_date:
+        raise HTTPException(status_code=422, detail="start_date must be <= end_date")
     records, total = svc.get_records(session, skip, limit, start_date, end_date)
     return HealthRecordListResponse(total=total, records=records)
 

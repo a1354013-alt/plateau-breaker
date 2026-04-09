@@ -4,33 +4,49 @@ import os
 from pathlib import Path
 from typing import Generator
 
+from sqlalchemy import inspect
 from sqlmodel import SQLModel, Session, create_engine
 
 
-def _resolve_db_url() -> str:
-    """
-    Stable SQLite path resolution (independent of process working directory).
+def _resolve_db_path() -> Path:
+    """Resolve the SQLite file path (independent of process working directory).
 
     Env override:
-    - PLATEAUBREAKER_DB_PATH: absolute path, or path relative to backend root
+    - PLATEAUBREAKER_DB_PATH: absolute path OR path relative to the `backend/` directory.
+      For convenience, a relative path starting with `backend/` is treated as repo-root relative.
 
     Default:
     - backend/data/plateaubreaker.sqlite3
     """
 
     backend_dir = Path(__file__).resolve().parents[1]
+    repo_root = backend_dir.parent
     configured = os.getenv("PLATEAUBREAKER_DB_PATH")
 
     if configured and configured.strip():
-        db_path = Path(configured.strip())
-        if not db_path.is_absolute():
-            db_path = backend_dir / db_path
+        raw = configured.strip()
+        p = Path(raw)
+        if p.is_absolute():
+            db_path = p
+        else:
+            parts = Path(raw).parts
+            if parts and parts[0].lower() == "backend":
+                db_path = repo_root / p
+            else:
+                db_path = backend_dir / p
     else:
         db_path = backend_dir / "data" / "plateaubreaker.sqlite3"
 
-    db_path = db_path.resolve()
+    return db_path.resolve()
+
+
+def ensure_db_dir_exists() -> None:
+    db_path = _resolve_db_path()
     db_path.parent.mkdir(parents=True, exist_ok=True)
 
+
+def _resolve_db_url() -> str:
+    db_path = _resolve_db_path()
     return f"sqlite:///{db_path.as_posix()}"
 
 
@@ -44,9 +60,17 @@ engine = create_engine(
 
 
 def create_db_and_tables():
+    ensure_db_dir_exists()
+    # Bootstrap only when the database is empty. This avoids silently applying
+    # schema changes via `create_all` after the first run; use migrations for
+    # evolving schemas over time.
+    inspector = inspect(engine)
+    if inspector.get_table_names():
+        return
     SQLModel.metadata.create_all(engine)
 
 
 def get_session() -> Generator[Session, None, None]:
+    ensure_db_dir_exists()
     with Session(engine) as session:
         yield session

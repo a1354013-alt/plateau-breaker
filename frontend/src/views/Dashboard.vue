@@ -47,8 +47,8 @@
         icon="pi pi-user"
         icon-color="#6366f1"
         icon-bg="#eef2ff"
-        :sub="weightChangeSub"
-        :sub-class="weightChangeClass"
+        :sub="latestWeightSub"
+        :sub-class="latestWeightSubClass"
       />
       <KpiCard
         label="7-Day Avg Weight"
@@ -81,6 +81,15 @@
         :sub="caloriesSub"
         :sub-class="caloriesSubClass"
       />
+      </div>
+
+      <div v-if="isStale" class="stale-warning" role="status" aria-live="polite">
+        <span class="stale-badge">STALE</span>
+        <i class="pi pi-exclamation-triangle" aria-hidden="true" />
+        <span>
+          Your latest record is {{ lastRecordAgeDays }} day(s) old. KPIs and analysis use calendar windows ending
+          today, so results may be incomplete until you log a recent record.
+        </span>
       </div>
 
     <!-- Plateau Status Banner -->
@@ -257,15 +266,13 @@ const statusTitle = computed(() => {
   return map[plateauStatus.value] || 'Status Unknown'
 })
 
-const weightChangeSub = computed(() => {
-  const asOf = dashboard.value?.last_record_date ? `As of ${dashboard.value.last_record_date}` : undefined
+const weightChangeLine = computed(() => {
   const c = dashboard.value?.weight_change_7d
   if (c === null || c === undefined) {
-    const hint = '7-day change unavailable (needs records for today and exactly 7 days ago)'
-    return asOf ? `${asOf} · ${hint}` : hint
+    return '7-day change unavailable (needs records for today and exactly 7 days ago)'
   }
   const sign = c > 0 ? '+' : ''
-  return asOf ? `${asOf} · ${sign}${c.toFixed(1)} kg vs 7 days ago` : `${sign}${c.toFixed(1)} kg vs 7 days ago`
+  return `${sign}${c.toFixed(1)} kg vs 7 days ago`
 })
 
 const weightChangeClass = computed(() => {
@@ -273,6 +280,41 @@ const weightChangeClass = computed(() => {
   if (c === null || c === undefined) return 'neutral'
   return c < 0 ? 'positive' : c > 0 ? 'negative' : 'neutral'
 })
+
+const MS_PER_DAY = 24 * 60 * 60 * 1000
+
+function parseIsoDateToUtcDay(iso: string): number | null {
+  const parts = iso.split('-').map((x) => Number(x))
+  if (parts.length !== 3 || parts.some((n) => Number.isNaN(n))) return null
+  const [y, m, d] = parts
+  return Date.UTC(y, m - 1, d)
+}
+
+const lastRecordAgeDays = computed(() => {
+  const iso = dashboard.value?.last_record_date
+  if (!iso) return null
+  const recordUtcDay = parseIsoDateToUtcDay(iso)
+  if (recordUtcDay === null) return null
+  const today = new Date()
+  const todayUtcDay = Date.UTC(today.getFullYear(), today.getMonth(), today.getDate())
+  return Math.max(0, Math.floor((todayUtcDay - recordUtcDay) / MS_PER_DAY))
+})
+
+const isStale = computed(() => lastRecordAgeDays.value !== null && lastRecordAgeDays.value > 7)
+
+const latestWeightSub = computed(() => {
+  const iso = dashboard.value?.last_record_date
+  const asOfLine =
+    iso && lastRecordAgeDays.value !== null
+      ? `As of ${iso}${isStale.value ? ` (stale: ${lastRecordAgeDays.value}d old)` : ''}`
+      : iso
+        ? `As of ${iso}`
+        : undefined
+
+  return [asOfLine, weightChangeLine.value].filter(Boolean).join('\n')
+})
+
+const latestWeightSubClass = computed(() => (isStale.value ? 'negative' : weightChangeClass.value))
 
 const sleepSub = computed(() => {
   const s = dashboard.value?.avg_sleep_7d
@@ -471,6 +513,34 @@ onMounted(async () => {
 }
 .day-btn:hover { border-color: var(--color-accent); color: var(--color-accent); }
 .day-btn.active { background: var(--color-accent); color: white; border-color: var(--color-accent); }
+
+.stale-warning {
+  display: flex;
+  gap: 10px;
+  align-items: flex-start;
+  padding: 0.75rem 1rem;
+  border-radius: var(--radius-md);
+  border: 1px solid #fecaca;
+  background: #fff1f2;
+  color: #991b1b;
+  font-size: 0.85rem;
+  margin-bottom: 1.25rem;
+}
+.stale-badge {
+  display: inline-flex;
+  align-items: center;
+  height: 20px;
+  padding: 0 8px;
+  border-radius: 999px;
+  font-weight: 700;
+  font-size: 0.7rem;
+  letter-spacing: 0.06em;
+  background: #dc2626;
+  color: white;
+  flex-shrink: 0;
+  margin-top: 1px;
+}
+.stale-warning i { margin-top: 2px; }
 
 @media (max-width: 768px) {
   .charts-grid { grid-template-columns: 1fr; }

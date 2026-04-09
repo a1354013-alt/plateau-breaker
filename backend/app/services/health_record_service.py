@@ -61,6 +61,13 @@ def update_record(
 
     update_data = data.model_dump(exclude_unset=True)
 
+    # Defense-in-depth: if a non-nullable column is explicitly set to null in the payload,
+    # reject it early (422) instead of letting it reach the DB commit.
+    non_nullable = ("record_date", "weight", "sleep_hours", "calories", "exercise_minutes")
+    for field in non_nullable:
+        if field in update_data and update_data[field] is None:
+            raise HTTPException(status_code=422, detail=f"{field} cannot be null")
+
     # Check for date collision if record_date is being updated
     if "record_date" in update_data and update_data["record_date"] != record.record_date:
         existing_record_on_new_date = session.exec(

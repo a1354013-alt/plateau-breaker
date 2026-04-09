@@ -11,6 +11,9 @@ Base URL: `/api`
   - Records are ordered by `record_date` desc
 - `POST /health-records`
 - `PUT /health-records/{id}`
+  - Update semantics:
+    - Omitted fields are not changed.
+    - For non-nullable fields (`record_date`, `weight`, `sleep_hours`, `calories`, `exercise_minutes`), explicitly sending `null` is rejected with **422** (never a late 500 at DB commit time).
 - `DELETE /health-records/{id}`
 
 ### Analytics (formal response models)
@@ -21,6 +24,7 @@ All endpoints under `/analytics/*` have explicit Pydantic response models define
   - 7-day averages are based on the **last 7 calendar days ending today** (requires at least 5 recorded days; otherwise the average fields are `null`)
   - `current_weight` is the latest recorded weight (see `last_record_date`)
   - `weight_change_7d` is **today's weight minus the weight on the exact date 7 days ago**; if **either** date is missing, it is `null`
+  - Frontend freshness rule: when `last_record_date` is more than 7 days old, the UI shows a **stale** warning to avoid misleading interpretation of "latest" metrics
 
 - `GET /analytics/trends?days=7..365`
   - Time-series data for charts
@@ -34,6 +38,12 @@ All endpoints under `/analytics/*` have explicit Pydantic response models define
 - `GET /analytics/summary?calorie_target=1000..5000`
   - Combined response `{ plateau, reasons, summary }`
   - `summary` payload uses stable keys: `text`, `insight`, `status`, `top_reasons`
+
+## Database & migrations
+
+- The API server can **bootstrap an empty SQLite database** on first run (creates tables only when the DB has no tables).
+- Once the database exists, **schema changes must be applied via Alembic migrations** under `backend/alembic/`.
+- Production deployments should run `alembic upgrade head` before starting the API server.
 
 ## Plateau detection (rules)
 
@@ -62,6 +72,9 @@ Reason codes:
 ## Frontend data flow
 
 - `frontend/src/services/api.ts` is the single source of truth for API contracts used by stores/views
+- API base URL selection:
+  - `VITE_API_BASE_URL` (if set) is used first
+  - otherwise it falls back to `/api` (keeps Vite dev proxy working)
 - `frontend/src/stores/analytics.ts` is the single source of truth for dashboard/analysis state
 - `frontend/src/stores/healthRecords.ts` owns record pagination query state and handles delete-empty-page recovery
 - `frontend/src/components/StatePanel.vue` standardizes loading/error/empty presentation across pages

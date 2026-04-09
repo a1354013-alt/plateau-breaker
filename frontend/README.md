@@ -22,16 +22,16 @@ The dev server proxies `/api` to the backend (see `vite.config.ts`).
 
 ## Node version (required)
 
-- This repo pins Node via `D:\\git\\plateau-breaker\\.nvmrc` (`20.19.0`).
+- This repo pins Node via `.nvmrc` (`20.19.0`) at the repository root.
 - `package.json` also declares an `engines.node` range; use Node 20.19+ for consistent results.
 - `frontend/.npmrc` sets `engine-strict=true`, so `npm ci` will fail fast if you use the wrong Node version (this is intentional for reproducibility).
 
 If you want quieter install logs locally, you can run `npm ci --loglevel=error`.
 
-## Why no `glob` deprecation warnings?
+## Deprecation warnings (upstream)
 
-- Some upstream testing utilities pull in packages that depend on `glob`, which is deprecated on npm and prints noisy warnings.
-- This repo avoids pulling `glob` into the dependency tree by overriding `js-beautify` with a tiny local shim at `vendor/js-beautify` (configured via `package.json` `overrides`).
+- Some upstream packages used for testing may emit `deprecated` warnings during install.
+- This repo does not patch/fork upstream dependencies in the final-ready baseline; CI runs installs with `--loglevel=error` to keep logs clean and focus on failures.
 
 ## Production build
 
@@ -55,8 +55,11 @@ npm test
 
 ## API base
 
-- All requests use `baseURL: /api` in `src/services/api.ts`.
-- In dev, Vite proxies `/api` to `http://localhost:8000`.
+- `src/services/api.ts` resolves the API base URL in this order:
+  - `VITE_API_BASE_URL` (if set)
+  - fallback `/api` (keeps Vite dev proxy working)
+- In dev, Vite proxies `/api` to `http://localhost:8000` (see `vite.config.ts`).
+- In production (or when not using the proxy), set `VITE_API_BASE_URL` (see `frontend/.env.example`).
 
 ## State management (high level)
 

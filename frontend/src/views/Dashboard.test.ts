@@ -207,4 +207,39 @@ describe('Dashboard view states', () => {
     expect(wrapper.text()).not.toContain("Couldn't load dashboard")
     expect(wrapper.text()).toContain('Failed to load charts.')
   })
+
+  it('shows stale warning when latest record is older than 7 days', () => {
+    vi.useFakeTimers()
+    vi.setSystemTime(new Date('2026-04-09T08:00:00.000Z'))
+
+    store = makeStore({
+      dashboard: {
+        current_weight: 75,
+        avg_weight_7d: 74.5,
+        avg_sleep_7d: 7,
+        avg_calories_7d: 2000,
+        weight_change_7d: null,
+        total_records: 10,
+        last_record_date: '2026-03-20',
+      },
+      summary: null,
+      trends: { days: 7, data_points: 0, trends: [] },
+    })
+
+    const wrapper = mount(Dashboard, {
+      global: {
+        stubs: {
+          Line: true,
+          Bar: true,
+          RouterLink: true,
+          Button: true,
+        },
+      },
+    })
+
+    expect(wrapper.text()).toContain('stale:')
+    expect(wrapper.text()).toContain('Your latest record is')
+
+    vi.useRealTimers()
+  })
 })
