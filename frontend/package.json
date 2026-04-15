@@ -1,14 +1,16 @@
 {
-  "name": "frontend",
+  "name": "plateaubreaker-web",
   "private": true,
-  "version": "0.0.0",
+  "version": "1.0.0",
   "type": "module",
   "engines": {
-    "node": ">=20.19 <21"
+    "node": ">=20.19"
   },
   "scripts": {
     "dev": "vite",
     "build": "vue-tsc -b && vite build",
+    "generate:api": "openapi-typescript ./openapi.json -o ./src/generated/api.ts",
+    "capture:screenshots": "node ./scripts/capture-screenshots.mjs",
     "lint": "eslint . --max-warnings=0",
     "test": "vitest run",
     "preview": "vite preview"
@@ -30,10 +32,13 @@
     "@vitejs/plugin-vue": "^6.0.5",
     "@vue/tsconfig": "^0.9.0",
     "@vue/test-utils": "^2.4.6",
+    "@vitest/coverage-v8": "^4.1.3",
     "eslint": "^9.0.0",
     "eslint-plugin-vue": "^9.0.0",
     "globals": "^15.0.0",
     "jsdom": "^29.0.2",
+    "openapi-typescript": "7.6.1",
+    "playwright": "1.59.1",
     "typescript-eslint": "^8.0.0",
     "typescript": "~5.9.3",
     "vite": "^8.0.7",

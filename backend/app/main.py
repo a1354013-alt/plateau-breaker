@@ -2,9 +2,15 @@ from __future__ import annotations
 
 import os
 from contextlib import asynccontextmanager
+from pathlib import Path
 
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
+from fastapi.responses import FileResponse
+from fastapi.staticfiles import StaticFiles
+from starlette.middleware.base import BaseHTTPMiddleware
+from starlette.requests import Request
+from starlette.responses import Response
 
 from app.api import analytics_router, health_records_router
 from app.database import create_db_and_tables
@@ -53,9 +59,41 @@ app.add_middleware(
 app.include_router(health_records_router)
 app.include_router(analytics_router)
 
+_dist_dir = Path(__file__).resolve().parent / "static" / "dist"
+_index_html = _dist_dir / "index.html"
 
-@app.get("/")
-def root():
+
+class _SpaFallbackMiddleware(BaseHTTPMiddleware):
+    def __init__(self, app: FastAPI, *, index_html: Path, api_prefix: str = "/api"):
+        super().__init__(app)
+        self._index_html = index_html
+        self._api_prefix = api_prefix
+
+    async def dispatch(self, request: Request, call_next) -> Response:
+        response = await call_next(request)
+
+        if request.method != "GET":
+            return response
+
+        path = request.url.path
+        if path.startswith(self._api_prefix):
+            return response
+
+        if response.status_code != 404:
+            return response
+
+        accept = request.headers.get("accept", "")
+        if "text/html" not in accept and "*/*" not in accept:
+            return response
+
+        if not self._index_html.exists():
+            return response
+
+        return FileResponse(self._index_html)
+
+
+@app.get("/api/meta")
+def api_meta():
     return {
         "name": "PlateauBreaker API",
         "version": "1.0.0",
@@ -67,3 +105,9 @@ def root():
 def health_check():
     return {"status": "ok"}
 
+
+if _dist_dir.exists() and _index_html.exists():
+    # Serve the built SPA when available (e.g. in Docker/prod builds).
+    # This must be registered AFTER API routes like /health to avoid shadowing them.
+    app.mount("/", StaticFiles(directory=str(_dist_dir), html=True), name="frontend")
+    app.add_middleware(_SpaFallbackMiddleware, index_html=_index_html)

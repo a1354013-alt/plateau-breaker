@@ -16,6 +16,10 @@ class ReleasePaths:
     backend: Path
     frontend_dist: Path
     readme: Path
+    technical_guide: Path
+    env_example: Path
+    dockerfile: Path
+    docker_compose: Path
 
 
 def repo_paths() -> ReleasePaths:
@@ -25,6 +29,10 @@ def repo_paths() -> ReleasePaths:
         backend=root / "backend",
         frontend_dist=root / "frontend" / "dist",
         readme=root / "README.md",
+        technical_guide=root / "PlateauBreaker_Technical_Guide.md",
+        env_example=root / ".env.example",
+        dockerfile=root / "Dockerfile",
+        docker_compose=root / "docker-compose.yml",
     )
 
 
@@ -112,6 +120,14 @@ def main() -> int:
         add_tree(zf, src=paths.backend, dest_prefix="backend")
         add_tree(zf, src=paths.frontend_dist, dest_prefix="frontend/dist")
         zf.write(paths.readme, "README.md")
+        if paths.technical_guide.exists():
+            zf.write(paths.technical_guide, paths.technical_guide.name)
+        if paths.env_example.exists():
+            zf.write(paths.env_example, paths.env_example.name)
+        if paths.dockerfile.exists():
+            zf.write(paths.dockerfile, paths.dockerfile.name)
+        if paths.docker_compose.exists():
+            zf.write(paths.docker_compose, paths.docker_compose.name)
 
     print(f"Created: {zip_path}")
     return 0

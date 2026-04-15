@@ -1,13 +1,10 @@
-from datetime import date, datetime, timezone
+from datetime import date, datetime
 from typing import Optional
 
+import sqlalchemy as sa
 from sqlmodel import Field, SQLModel
 
-
-# All timestamps in the database are stored as UTC naive datetime objects.
-# They should be treated as UTC and converted to local time only for display purposes.
-def _utcnow_naive() -> datetime:
-    return datetime.now(timezone.utc).replace(tzinfo=None)
+from app.time import utcnow
 
 
 class HealthRecord(SQLModel, table=True):
@@ -20,8 +17,14 @@ class HealthRecord(SQLModel, table=True):
     calories: int
     protein: Optional[int] = Field(default=None)
     exercise_minutes: int = Field(default=0)
-    exercise_type: Optional[str] = Field(default=None, max_length=100)
+    exercise_type: Optional[str] = Field(default=None, max_length=50)
     steps: Optional[int] = Field(default=None)
-    note: Optional[str] = Field(default=None)
-    created_at: datetime = Field(default_factory=_utcnow_naive)
-    updated_at: datetime = Field(default_factory=_utcnow_naive)
+    note: Optional[str] = Field(default=None, max_length=500)
+    created_at: datetime = Field(
+        default_factory=utcnow,
+        sa_column=sa.Column(sa.DateTime(timezone=True), nullable=False),
+    )
+    updated_at: datetime = Field(
+        default_factory=utcnow,
+        sa_column=sa.Column(sa.DateTime(timezone=True), nullable=False),
+    )

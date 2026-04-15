@@ -6,7 +6,13 @@ import zipfile
 
 
 ALLOWED_PREFIXES = ("backend/", "frontend/dist/")
-ALLOWED_ROOT_FILES = ("README.md",)
+ALLOWED_ROOT_FILES = (
+    "README.md",
+    "PlateauBreaker_Technical_Guide.md",
+    ".env.example",
+    "Dockerfile",
+    "docker-compose.yml",
+)
 
 FORBIDDEN_SUBSTRINGS = (
     "/.git/",
@@ -22,13 +28,16 @@ FORBIDDEN_SUBSTRINGS = (
     "/__pycache__/",
     "/backend/tests/",
     "/backend/data/",
-    "/.env",
     "/release/",
     "/release_tmp/",
 )
 
 REQUIRED_ENTRIES = (
     "README.md",
+    "PlateauBreaker_Technical_Guide.md",
+    ".env.example",
+    "Dockerfile",
+    "docker-compose.yml",
     "backend/requirements.txt",
     "backend/alembic.ini",
     "backend/alembic/env.py",
@@ -80,6 +89,9 @@ def validate_zip(path: Path) -> None:
     violations: list[str] = []
     for n in names:
         normalized = f"/{n.lstrip('/')}"
+        if normalized == "/.env" or (normalized.startswith("/.env.") and normalized != "/.env.example"):
+            violations.append(n)
+            continue
         for bad in FORBIDDEN_SUBSTRINGS:
             if normalized.startswith(bad) or bad in normalized:
                 violations.append(n)

@@ -1,10 +1,12 @@
 import axios from 'axios'
 
+import type { components, paths } from '@/generated/api'
+
 export function getApiBaseUrl(
   env: Pick<ImportMetaEnv, 'VITE_API_BASE_URL'> = import.meta.env,
 ): string {
   const raw = (env.VITE_API_BASE_URL ?? '').trim()
-  if (!raw) return '/api'
+  if (!raw) return ''
   return raw.endsWith('/') ? raw.slice(0, -1) : raw
 }
 
@@ -16,112 +18,33 @@ const api = axios.create({
   },
 })
 
+type ApiPath = keyof paths
+
+const API_PATHS = {
+  healthRecords: '/api/health-records' as const satisfies ApiPath,
+  analyticsDashboard: '/api/analytics/dashboard' as const satisfies ApiPath,
+  analyticsTrends: '/api/analytics/trends' as const satisfies ApiPath,
+  analyticsPlateau: '/api/analytics/plateau' as const satisfies ApiPath,
+  analyticsReasons: '/api/analytics/reasons' as const satisfies ApiPath,
+  analyticsSummary: '/api/analytics/summary' as const satisfies ApiPath,
+} as const
+
 // ----------------------------------------------------------------------------
 // Types (API contracts)
 // ----------------------------------------------------------------------------
 
-export interface HealthRecord {
-  id: number
-  record_date: string
-  weight: number
-  sleep_hours: number
-  calories: number
-  protein?: number
-  exercise_minutes: number
-  exercise_type?: string
-  steps?: number
-  note?: string
-  created_at: string
-  updated_at: string
-}
+export type HealthRecord = components['schemas']['HealthRecordResponse']
+export type HealthRecordCreate = components['schemas']['HealthRecordCreate']
+export type HealthRecordUpdate = components['schemas']['HealthRecordUpdate']
+export type HealthRecordListResponse = components['schemas']['HealthRecordListResponse']
 
-export interface HealthRecordCreate {
-  record_date: string
-  weight: number
-  sleep_hours: number
-  calories: number
-  protein?: number
-  exercise_minutes?: number
-  exercise_type?: string
-  steps?: number
-  note?: string
-}
-
-export type HealthRecordUpdate = Partial<HealthRecordCreate>
-
-export interface HealthRecordListResponse {
-  total: number
-  records: HealthRecord[]
-}
-
-export interface DashboardData {
-  current_weight: number | null
-  avg_weight_7d: number | null
-  avg_sleep_7d: number | null
-  avg_calories_7d: number | null
-  weight_change_7d: number | null
-  total_records: number
-  last_record_date: string | null
-}
-
-export interface TrendPoint {
-  date: string
-  weight: number
-  sleep_hours: number
-  calories: number
-  exercise_minutes: number
-  steps?: number
-}
-
-export interface TrendsData {
-  days: number
-  data_points: number
-  trends: TrendPoint[]
-}
-
-export interface PlateauData {
-  status: 'losing' | 'plateau' | 'gaining' | 'insufficient_data'
-  rule_a: boolean | null
-  rule_b: boolean | null
-  last7_avg: number | null
-  prev7_avg: number | null
-  avg_change: number | null
-  last7_fluctuation: number | null
-  last7_min: number | null
-  last7_max: number | null
-  data_completeness: number | null
-  message: string | null
-}
-
-export interface ReasonItem {
-  code: string
-  label: string
-  description: string
-  severity: number
-  value: number
-  threshold: number
-  details?: Record<string, unknown>
-}
-
-export interface ReasonsData {
-  status: 'ok' | 'insufficient_data'
-  message: string | null
-  reasons: ReasonItem[]
-  all_reasons: ReasonItem[]
-  data_points: number
-  missing_days: number
-}
-
-export interface SummaryData {
-  plateau: PlateauData
-  reasons: ReasonsData
-  summary: {
-    text: string
-    insight: string
-    status: PlateauData['status']
-    top_reasons: string[]
-  }
-}
+export type DashboardData = components['schemas']['DashboardResponse']
+export type TrendPoint = components['schemas']['TrendPoint']
+export type TrendsData = components['schemas']['TrendsResponse']
+export type PlateauData = components['schemas']['PlateauResponse']
+export type ReasonItem = components['schemas']['ReasonItem']
+export type ReasonsData = components['schemas']['ReasonsResponse']
+export type SummaryData = components['schemas']['SummaryResponse']
 
 // ----------------------------------------------------------------------------
 // Health Records API
@@ -129,23 +52,23 @@ export interface SummaryData {
 
 export const healthRecordsApi = {
   list(params?: { skip?: number; limit?: number; start_date?: string; end_date?: string }) {
-    return api.get<HealthRecordListResponse>('/health-records', { params })
+    return api.get<HealthRecordListResponse>(API_PATHS.healthRecords, { params })
   },
 
   get(id: number) {
-    return api.get<HealthRecord>(`/health-records/${id}`)
+    return api.get<HealthRecord>(`${API_PATHS.healthRecords}/${id}`)
   },
 
   create(data: HealthRecordCreate) {
-    return api.post<HealthRecord>('/health-records', data)
+    return api.post<HealthRecord>(API_PATHS.healthRecords, data)
   },
 
   update(id: number, data: HealthRecordUpdate) {
-    return api.put<HealthRecord>(`/health-records/${id}`, data)
+    return api.put<HealthRecord>(`${API_PATHS.healthRecords}/${id}`, data)
   },
 
   delete(id: number) {
-    return api.delete(`/health-records/${id}`)
+    return api.delete(`${API_PATHS.healthRecords}/${id}`)
   },
 }
 
@@ -155,25 +78,25 @@ export const healthRecordsApi = {
 
 export const analyticsApi = {
   dashboard() {
-    return api.get<DashboardData>('/analytics/dashboard')
+    return api.get<DashboardData>(API_PATHS.analyticsDashboard)
   },
 
   trends(days: number = 30) {
-    return api.get<TrendsData>('/analytics/trends', { params: { days } })
+    return api.get<TrendsData>(API_PATHS.analyticsTrends, { params: { days } })
   },
 
   plateau() {
-    return api.get<PlateauData>('/analytics/plateau')
+    return api.get<PlateauData>(API_PATHS.analyticsPlateau)
   },
 
   reasons(calorieTarget: number) {
-    return api.get<ReasonsData>('/analytics/reasons', {
+    return api.get<ReasonsData>(API_PATHS.analyticsReasons, {
       params: { calorie_target: calorieTarget },
     })
   },
 
   summary(calorieTarget: number) {
-    return api.get<SummaryData>('/analytics/summary', {
+    return api.get<SummaryData>(API_PATHS.analyticsSummary, {
       params: { calorie_target: calorieTarget },
     })
   },

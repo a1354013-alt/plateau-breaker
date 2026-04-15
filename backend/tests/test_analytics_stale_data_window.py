@@ -10,12 +10,14 @@ from sqlmodel import Session, SQLModel, create_engine
 from app.api.analytics import router as analytics_router
 from app.api.health_records import router as health_records_router
 from app.database import get_session
+from app.dependencies.clock import get_anchor_date
 from app.models.health_record import (
     HealthRecord,  # noqa: F401  (ensure SQLModel metadata is populated)
 )
+from app.time import get_today
 
 
-def make_client() -> TestClient:
+def make_client(*, anchor: date) -> TestClient:
     engine = create_engine(
         "sqlite://",
         connect_args={"check_same_thread": False},
@@ -31,13 +33,15 @@ def make_client() -> TestClient:
     app.include_router(health_records_router)
     app.include_router(analytics_router)
     app.dependency_overrides[get_session] = override_get_session
+    app.dependency_overrides[get_anchor_date] = lambda: anchor
     return TestClient(app)
 
 
 def test_dashboard_averages_null_when_no_recent_records():
-    client = make_client()
+    anchor = get_today()
+    client = make_client(anchor=anchor)
 
-    old_day = date.today() - timedelta(days=20)
+    old_day = anchor - timedelta(days=20)
     res = client.post(
         "/api/health-records",
         json={
@@ -67,9 +71,10 @@ def test_dashboard_averages_null_when_no_recent_records():
 
 
 def test_summary_insufficient_when_no_recent_records():
-    client = make_client()
+    anchor = get_today()
+    client = make_client(anchor=anchor)
 
-    old_day = date.today() - timedelta(days=20)
+    old_day = anchor - timedelta(days=20)
     res = client.post(
         "/api/health-records",
         json={

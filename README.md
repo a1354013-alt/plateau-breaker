@@ -1,49 +1,53 @@
 # PlateauBreaker
 
-PlateauBreaker is a small full-stack app for logging daily health metrics and detecting weight plateaus.
+以「資料契約清楚、時間語義正確、可測試可部署」為目標的全端作品：記錄每日健康指標，並用規則引擎做 **體重停滯（plateau）偵測**與 **原因分析**。
 
-- Backend: FastAPI + SQLModel (SQLite)
-- Frontend: Vue 3 + PrimeVue + Pinia + Chart.js
+## 作品亮點（求職展示重點）
 
-## Core features
+- **時間語義收斂**：所有「today / 最近 7 天」都走同一套 `APP_TIMEZONE`（預設 `Asia/Taipei`）的 anchor date，避免部署在 UTC 主機造成日期偏移。
+- **資料契約防線完整**：`record_date` 在 backend 端拒絕未來日期（422 + 可讀錯誤），前端驗證不再是唯一防線。
+- **時間戳契約明確**：`created_at / updated_at` 統一輸出 **ISO 8601 UTC + `Z`**，避免 naive datetime 的模糊語義。
+- **API contract 單一真相**：以 **FastAPI OpenAPI** 為唯一來源，前端型別由 **openapi-typescript** 生成，並在 CI 內做 drift 檢查。
+- **CI 更像正式作品**：backend / frontend 都有 coverage gate + integration smoke（啟動 backend、驗證主要 API、驗證前端 build 可服務）。
+- **交付可落地**：提供 `Dockerfile` + `docker-compose.yml` 一鍵啟動 demo；release zip 由腳本生成並驗證內容乾淨。
 
-- Record daily metrics: weight, sleep, calories, protein, exercise, steps, notes
-- Dashboard KPIs (7-day averages) + trend charts (7/14/30 days)
-- Plateau analysis (rules evaluated on the last 7 days)
-- Cause analysis (top factors evaluated on the last 7 days)
+## Screenshots
 
-## Repository layout
+![Dashboard](docs/screenshots/dashboard.png)
+![Records](docs/screenshots/records.png)
+![Analysis](docs/screenshots/analysis.png)
 
-- `backend/`: FastAPI service (serves `/api/...`)
-  - `backend/data/`: default local SQLite location for development/runtime data; not part of the release artifact
-  - `backend/alembic/` + `backend/alembic.ini`: migration entrypoint for schema changes
-- `frontend/`: Vue app (Vite dev server + production build)
-- `PlateauBreaker_Technical_Guide.md`: API + rules + data flow
+## Tech Stack
 
-## Prerequisites
+- Backend: FastAPI + SQLModel + Alembic + SQLite
+- Frontend: Vue 3 + Vite + Pinia + PrimeVue + Chart.js
+- Contract: OpenAPI → openapi-typescript → `frontend/src/generated/api.ts`
+- CI: GitHub Actions（lint / test / coverage / contract / migration / integration / release packaging）
 
-- Node.js + npm (for the frontend)
-- Python 3.11 (for the backend; CI uses 3.11)
+## Architecture
 
-### Node version (required for reproducible installs)
+```mermaid
+flowchart LR
+  subgraph "Browser"
+    UI["Vue 3 SPA<br/>Dashboard / Records / Analysis"]
+  end
 
-- This repo pins Node via `.nvmrc` (`20.19.0`).
-- If you use asdf, you can use `.tool-versions`.
-- The frontend also declares `engines.node` in `frontend/package.json`.
-- Use Node 20.19+ to avoid lockfile drift and ensure `npm ci` works in a clean environment.
-- The frontend enforces this via `frontend/.npmrc` (`engine-strict=true`), so `npm ci` fails fast on the wrong Node version.
+  subgraph "Backend (FastAPI)"
+    API["/api/* endpoints"]
+    Rules["Rules Engine<br/>plateau + reasons + summary"]
+    DB["SQLite + Alembic"]
+    Time["Time Helper<br/>APP_TIMEZONE anchor date"]
+  end
 
-#### Example (nvm)
-
-```powershell
-nvm install 20.19.0
-nvm use 20.19.0
-node -v
+  UI -->|"HTTP (same-origin or VITE_API_BASE_URL)"| API
+  API --> Rules
+  API --> DB
+  API --> Time
 ```
 
-## Quick start (local)
+## Quick Start（本機開發）
 
-### 1) Backend
+### Backend（Python 3.11+）
 
 ```powershell
 cd backend
@@ -51,10 +55,15 @@ python -m venv .venv
 .\.venv\Scripts\Activate.ps1
 python -m pip install -r requirements.txt -c constraints.txt
 python -m pip install -r requirements-dev.txt -c constraints.txt
-uvicorn app.main:app --reload --host 127.0.0.1 --port 8000
+
+# migrations
+alembic -c alembic.ini upgrade head
+
+# dev server
+uvicorn app.main:app --reload --host 127.0.0.1 --port 8000 --env-file ../.env
 ```
 
-### 2) Frontend
+### Frontend（Node 20.19+）
 
 ```powershell
 cd frontend
@@ -62,147 +71,20 @@ npm ci
 npm run dev
 ```
 
-By default, the frontend calls `/api` (see `frontend/src/services/api.ts`).
+- dev 模式下，Vite 會 proxy `/api` → `http://localhost:8000`（見 `frontend/vite.config.ts`）。
+- 若要直連後端（或部署在不同網域），設定 `VITE_API_BASE_URL`（見 `frontend/.env.example`）。
 
-- In dev, Vite proxies `/api` to `http://localhost:8000` (see `frontend/vite.config.ts`).
-- In production, you can override the API base via `VITE_API_BASE_URL` (see `frontend/.env.example`).
-
-## Production build (frontend)
-
-```powershell
-cd frontend
-npm ci
-npm run build
-```
-
-Build output is `frontend/dist/`.
-
-Note: the frontend ships with `frontend/.npmrc` to keep the npm cache inside `frontend/.npm-cache`. This avoids relying on a global user cache in restricted environments; the cache is safe to delete and excluded from commits/releases.
-
-## Tests
-
-### Backend
-
-```powershell
-cd backend
-python -m pip install -r requirements.txt -c constraints.txt
-python -m pip install -r requirements-dev.txt -c constraints.txt
-pytest -q
-```
-
-### Frontend
-
-```powershell
-cd frontend
-npm ci
-npm test
-```
-
-## CI (recommended)
-
-- GitHub Actions workflow: `.github/workflows/ci.yml`
-- Frontend job runs `npm ci`, `npm run lint`, `npm test -- --run`, `npm run build`, then a release packaging smoke test:
-  - `python scripts/make_release_zip.py --out-dir release`
-  - `python scripts/validate_release_zip.py --out-dir release`
-- Backend job runs `ruff check .`, a migration smoke test (`alembic upgrade head` against a temporary SQLite DB), then `pytest -q` on Python 3.11 using the locked dependency set from `constraints.txt`.
-
-## Seed data (optional)
-
-If you want sample records in your local SQLite database:
-
-```powershell
-cd backend
-.\.venv\Scripts\Activate.ps1
-python seed_data.py
-```
-
-If the database already has records, the seed script exits without modifying data.
-
-## What happens with no data?
-
-- Dashboard shows an empty state prompting you to add records.
-- Analysis requires **at least 5 recorded days within the last 7 calendar days (ending today)** to return meaningful results.
-- If your latest record is **more than 7 days old**, the Dashboard shows a **stale** warning to avoid misleading interpretation of “latest” metrics.
-
-## KPI definitions (quick reference)
-
-- `weight_change_7d`: only available when you have a record for **today** and **exactly 7 days ago**; otherwise it is `null`.
-
-## Configuration (env vars)
-
-See `.env.example` for backend env vars and `frontend/.env.example` for frontend build-time env vars.
-
-Note: the backend does **not** auto-load a `.env` file by default. If you copy `.env.example` to `.env`, either:
-- export the variables in your shell/session, or
-- run Uvicorn with `--env-file` (example from `backend/`: `uvicorn app.main:app --reload --env-file ../.env`).
-
-### Backend
-
-- `PLATEAUBREAKER_DB_PATH`
-  - Optional.
-  - Absolute path, or a path relative to `backend/` (example: `data/plateaubreaker.sqlite3`).
-  - Default: `backend/data/plateaubreaker.sqlite3`.
-  - `backend/data/` is a local runtime data directory, not a deployable asset. Release zips must not include it.
-
-- `CORS_ORIGINS`
-  - Optional.
-  - Comma-separated list of allowed origins.
-  - Default: `http://localhost:5173,http://127.0.0.1:5173`.
-
-## Packaging a clean delivery zip
-
-This repo contains a helper script to create a clean release zip.
-
-Release contents (deployable):
-- `backend/` (source, excludes `backend/tests` and local `backend/data`)
-- `frontend/dist/` (production build output)
-- `README.md`
-
-```powershell
-# Optional: clean local build artifacts first
-powershell -ExecutionPolicy Bypass -File .\scripts\clean_artifacts.ps1
-
-powershell -ExecutionPolicy Bypass -File .\scripts\clean_artifacts.ps1 -All
-
-# Build frontend first (required for packaging)
-cd frontend
-npm ci
-npm run build
-cd ..
-
-powershell -ExecutionPolicy Bypass -File .\scripts\make_release_zip.ps1
-```
-
-The zip is created under `release/`.
-
-Cross-platform alternative (works on Linux/macOS/Windows):
+## Docker（最小可交付 demo）
 
 ```bash
-python scripts/make_release_zip.py --out-dir release
-python scripts/validate_release_zip.py --out-dir release
+docker compose up --build
 ```
 
-### Source package vs release package
+打開 `http://localhost:8000`（backend 會同時提供 SPA + `/api/*`）。
 
-- **Source package** (for development backup/review): contains the repository source tree. If you must zip it, run `scripts/clean_artifacts.ps1 -All`
-  and exclude working-directory traces like `.git`, `node_modules/`, `dist/`, `.npm-cache/`, `__pycache__/`, IDE folders, and local databases.
-- A workspace/source zip may still contain review-only or machine-local traces such as `.git`, `.vscode`, local SQLite data, and other developer context. Treat it as source material, not a formal deliverable.
-- **Release package** (formal delivery / deployment): use the release zip generated by the scripts above. It is intentionally strict and contains only
-  deployable content (`backend/` source including Alembic migration files + `frontend/dist/` + `README.md`).
-- Formal handoff, deployment, and external sharing should always use the generated release zip under `release/`, not an ad-hoc source zip.
+## 部署重點（history mode）
 
-## Deployment notes (minimum)
-
-- Serve the frontend (static `dist/`) and run the backend API.
-- Ensure the backend has write access to the SQLite path (or set `PLATEAUBREAKER_DB_PATH`).
-- Configure `CORS_ORIGINS` for your deployed frontend domain(s).
-
-### Deploying the frontend (SPA history mode)
-
-The router uses HTML5 history mode (`createWebHistory`). Your static host must rewrite unknown routes to `index.html`,
-otherwise refreshing `/analysis` or `/records` will 404.
-
-Example (Nginx):
+此專案 router 使用 `createWebHistory`。若你把前端獨立部署到 Nginx / Static host，必須做 rewrite：
 
 ```nginx
 location / {
@@ -210,21 +92,64 @@ location / {
 }
 ```
 
-## Database migrations (backend)
+本 repo 的 Docker 方案由 backend 端提供 SPA fallback（refresh `/analysis` 不會 404）。
 
-This project includes a minimal Alembic setup under `backend/alembic/` for schema evolution.
+## API Contract Strategy（單一真相）
 
-**Rules of responsibility (important):**
-- **New/blank environment** (no SQLite file yet, or the DB has no tables): the API server will bootstrap tables automatically on startup for convenience.
-- **Existing environment** (DB already has tables): schema changes are **never** applied by the server; use **Alembic migrations**.
-- **Production deployments**: run `alembic upgrade head` **before** starting the API server.
-- `backend/data/` is only the default local storage location for SQLite. It is excluded from the release zip and is recreated at runtime as needed.
+1. backend OpenAPI 是唯一來源（FastAPI / Pydantic schemas）。
+2. 生成前端型別：`frontend/src/generated/api.ts`
+3. CI 會跑 `python scripts/check_api_contract.py`，確保 schema 變更不會讓前後端漂移。
 
-```powershell
-cd backend
-.\.venv\Scripts\Activate.ps1
-python -m pip install -r requirements-dev.txt -c constraints.txt
-alembic upgrade head
+本機更新流程：
+
+```bash
+python scripts/export_openapi.py --out frontend/openapi.json
+npm --prefix frontend run generate:api
+python scripts/check_api_contract.py
 ```
 
-The server bootstrap (`create_db_and_tables`) only runs when the database is empty. It is not a migration system.
+## 時間語義與資料契約（重要）
+
+- `APP_TIMEZONE`（預設 `Asia/Taipei`）定義「今天」與分析視窗 anchor date。
+- `record_date`（`YYYY-MM-DD`）在 server-side 會拒絕未來日期（422）。
+- `created_at / updated_at` 一律輸出 `YYYY-MM-DDTHH:mm:ss.sssZ`（UTC + `Z`）。
+
+細節見 `PlateauBreaker_Technical_Guide.md`。
+
+## Engineering Decisions / Known Trade-offs
+
+- 使用 SQLite 讓 demo 一鍵落地；資料量上來後可無痛切換 Postgres（Alembic 已就位）。
+- Rules engine 採「可解釋」規則，而非黑盒模型；方便在求職展示時講清楚 trade-offs 與可測試性。
+- 前端以 route-level code splitting 控制初始載入；Records chunk 較大（PrimeVue 表單/表格），但不影響首屏 Dashboard。
+
+## Roadmap
+
+- 增加 E2E（Playwright）作為 CI 可選 job（目前已提供 `frontend/scripts/capture-screenshots.mjs` 產生展示截圖）
+- 支援多使用者 / auth（改用 Postgres + migrations）
+- Analytics 指標擴充：週/月趨勢、睡眠與熱量關聯等
+
+## 驗收（本 repo 的必做門檻）
+
+```bash
+# backend
+cd backend
+ruff check .
+pytest -q --cov=app --cov-fail-under=80
+alembic -c alembic.ini upgrade head
+
+# frontend
+cd ../frontend
+npm ci
+npm run lint
+npm test -- --run --coverage
+npm run build
+
+# contract drift
+cd ..
+python scripts/check_api_contract.py
+
+# release
+python scripts/make_release_zip.py --out-dir release
+python scripts/validate_release_zip.py --out-dir release
+```
+

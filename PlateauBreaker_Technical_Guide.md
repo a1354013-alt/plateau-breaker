@@ -1,82 +1,134 @@
 # PlateauBreaker Technical Guide
 
-## Backend API (FastAPI)
+此文件聚焦「資料契約 / 時間語義 / 規則引擎 / 部署與交付」的工程決策，讓作品在 code review 與面試講解時可直接引用。
+
+## 1) Time Semantics（P0）
+
+### `APP_TIMEZONE`：定義使用者視角的「今天」
+
+- Env: `APP_TIMEZONE`（預設 `Asia/Taipei`）
+- 單一來源：`backend/app/time.py`
+  - `get_today()`：以 `APP_TIMEZONE` 計算 anchor date
+  - 所有「today / 最近 N 天」都由此 helper（或 FastAPI dependency）提供
+
+### Analytics 的 anchor date（避免 UTC 主機偏移）
+
+- FastAPI dependency：`backend/app/dependencies/clock.py:get_anchor_date`
+- `backend/app/api/analytics.py`
+  - `/api/analytics/*` 端點統一透過 `Depends(get_anchor_date)` 取得 anchor date
+- `backend/app/services/health_record_service.py:get_records_by_days`
+  - 預設 anchor date 為 `get_today()`（不是 `date.today()`）
+
+## 2) Data Contract（P0/P4）
+
+### `record_date`（server-side 驗證）
+
+- `backend/app/schemas/health_record.py`
+  - Create / Update 都會拒絕未來日期（422）
+  - 錯誤訊息包含最大允許日期：`record_date cannot be in the future (max: YYYY-MM-DD)`
+
+### `created_at / updated_at`（UTC + `Z`）
+
+- DB 欄位使用 `DateTime(timezone=True)`（見 `backend/app/models/health_record.py` + Alembic migration）
+- API 輸出使用統一序列化：
+  - `backend/app/time.py:format_datetime_utc_z`
+  - `backend/app/schemas/health_record.py` 透過 `@field_serializer` 將輸出固定為 ISO 8601 UTC `Z`
+
+### 輸入品質（避免髒資料污染分析）
+
+在 `backend/app/schemas/health_record.py` 統一定義 create / update 規則：
+
+- `note`：trim + 長度上限（`MAX_NOTE_LENGTH=500`），純空白視為 `null`
+- `exercise_type`：trim + collapse whitespace
+- `calories / protein / steps`：合理上限與 422 錯誤（避免極端值讓 KPI/圖表失真）
+
+## 3) Backend API（FastAPI）
 
 Base URL: `/api`
 
-### Health records
+### Meta / Health
 
-- `GET /health-records?skip=&limit=&start_date=&end_date=`
-  - Returns `{ total, records }`
-  - Records are ordered by `record_date` desc
-- `POST /health-records`
-- `PUT /health-records/{id}`
-  - Update semantics:
-    - Omitted fields are not changed.
-    - For non-nullable fields (`record_date`, `weight`, `sleep_hours`, `calories`, `exercise_minutes`), explicitly sending `null` is rejected with **422** (never a late 500 at DB commit time).
-- `DELETE /health-records/{id}`
+- `GET /api/meta`：基本資訊（name/version/docs）
+- `GET /health`：健康檢查（integration smoke 用）
 
-### Analytics (formal response models)
+### Health Records
 
-All endpoints under `/analytics/*` have explicit Pydantic response models defined in `backend/app/schemas/analytics.py`.
+- `GET /api/health-records?skip=&limit=&start_date=&end_date=`
+  - 回傳 `{ total, records }`
+  - records 依 `record_date` desc
+- `POST /api/health-records`（201）
+- `PUT /api/health-records/{record_id}`
+  - 省略欄位：不更新
+  - 對 non-nullable 欄位（`record_date/weight/sleep_hours/calories/exercise_minutes`）
+    - 若 payload 明確送 `null`，會回 422（避免晚到 DB commit 才炸）
+- `DELETE /api/health-records/{record_id}`（204）
 
-- `GET /analytics/dashboard`
-  - 7-day averages are based on the **last 7 calendar days ending today** (requires at least 5 recorded days; otherwise the average fields are `null`)
-  - `current_weight` is the latest recorded weight (see `last_record_date`)
-  - `weight_change_7d` is **today's weight minus the weight on the exact date 7 days ago**; if **either** date is missing, it is `null`
-  - Frontend freshness rule: when `last_record_date` is more than 7 days old, the UI shows a **stale** warning to avoid misleading interpretation of "latest" metrics
+### Analytics（Pydantic response models）
 
-- `GET /analytics/trends?days=7..365`
-  - Time-series data for charts
+schema 定義於 `backend/app/schemas/analytics.py`
 
-- `GET /analytics/plateau`
-  - Plateau detection result (rule outputs + metrics)
+- `GET /api/analytics/dashboard`
+  - KPI/平均：以「最近 7 個 **calendar days ending today**」為視窗
+  - 平均值至少需要 5 天資料，否則平均欄位為 `null`
+  - `weight_change_7d`：需要 **anchor date** 與 **anchor-7** 兩天都有資料才計算，否則 `null`
+- `GET /api/analytics/trends?days=7..365`
+- `GET /api/analytics/plateau`
+- `GET /api/analytics/reasons?calorie_target=1000..5000`
+- `GET /api/analytics/summary?calorie_target=1000..5000`
 
-- `GET /analytics/reasons?calorie_target=1000..5000`
-  - Ranked reason codes (top-2) + diagnostics
+## 4) Rules Engine（可解釋、可測試）
 
-- `GET /analytics/summary?calorie_target=1000..5000`
-  - Combined response `{ plateau, reasons, summary }`
-  - `summary` payload uses stable keys: `text`, `insight`, `status`, `top_reasons`
+### Plateau detection
 
-## Database & migrations
+檔案：`backend/app/rules/plateau_detector.py`
 
-- The API server can **bootstrap an empty SQLite database** on first run (creates tables only when the DB has no tables).
-- Once the database exists, **schema changes must be applied via Alembic migrations** under `backend/alembic/`.
-- Production deployments should run `alembic upgrade head` before starting the API server.
-- `backend/data/` is the default local SQLite storage area for development/runtime convenience. It is not part of the release artifact.
+- 視窗：最近 7 個 calendar days（ending anchor date）
+- 最少資料：`MIN_RECENT_DAYS=5`
+- Rule A（趨勢變化）：last7 avg vs prev7 avg
+- Rule B（波動帶）：(max-min) <= 0.6kg（等同 ±0.3kg band）
 
-## Plateau detection (rules)
+### Reasons analysis
 
-Evaluated on the last 7-day window (calendar days) ending **today**.
+檔案：`backend/app/rules/reason_analyzer.py`
 
-- Minimum data requirement: **at least 5 recent days** of records
-- Rule A (trend change): compare the last 7-day average vs the previous 7-day average
-  - Plateau condition: `abs(avg_change) < 0.2 kg`
-- Rule B (fluctuation band): within the last 7 days
-  - Plateau condition: `(max - min) <= 0.6 kg` (equivalent to ±0.3 kg)
+回傳 top-2 + all reasons，並帶 diagnostic（missing days、data points）
 
-## Reason analysis (top factors)
+## 5) Frontend Data Flow
 
-Evaluated on the last 7-day window (calendar days) ending **today**.
+- API client：`frontend/src/services/api.ts`
+  - 型別來源：`frontend/src/generated/api.ts`
+  - base URL：`VITE_API_BASE_URL`（若不設則用相對路徑，配合 dev proxy / same-origin 部署）
+- Stores
+  - `frontend/src/stores/analytics.ts`：dashboard + analysis state
+  - `frontend/src/stores/healthRecords.ts`：records list + CRUD
 
-- Minimum data requirement: **at least 5 recent days** of records
-- Returns top-2 reasons by severity
+## 6) API Contract Strategy（P1）
 
-Reason codes:
-- `SleepIssue`
-- `CalorieIssue`
-- `WeekendOvereating`
-- `ExerciseDrop`
-- `DataMissing`
+單一真相：backend OpenAPI（FastAPI/Pydantic schemas）
 
-## Frontend data flow
+- export：`scripts/export_openapi.py`
+- codegen：`openapi-typescript` → `frontend/src/generated/api.ts`
+- drift check：`scripts/check_api_contract.py`（CI 必跑）
 
-- `frontend/src/services/api.ts` is the single source of truth for API contracts used by stores/views
-- API base URL selection:
-  - `VITE_API_BASE_URL` (if set) is used first
-  - otherwise it falls back to `/api` (keeps Vite dev proxy working)
-- `frontend/src/stores/analytics.ts` is the single source of truth for dashboard/analysis state
-- `frontend/src/stores/healthRecords.ts` owns record pagination query state and handles delete-empty-page recovery
-- `frontend/src/components/StatePanel.vue` standardizes loading/error/empty presentation across pages
-- Formal deployable packaging is validated by `scripts/validate_release_zip.py`, which requires deployable files and rejects workspace-only traces such as `.git`, `.vscode`, caches, `backend/tests`, and `backend/data`.
+## 7) CI / Testing（P2）
+
+Workflow：`.github/workflows/ci.yml`
+
+- `contract`：OpenAPI → types drift 檢查
+- `backend`：`ruff` + `alembic upgrade head` smoke + `pytest --cov` gate
+- `frontend`：`eslint` + `vitest --coverage` gate + `vite build` + release packaging smoke
+- `integration`：啟動 backend、驗證主要 API、驗證前端 build 產物可服務（`scripts/smoke_test_ci.py`）
+
+## 8) Delivery（P3）
+
+### Docker / Compose
+
+- `Dockerfile`：multi-stage（build 前端 → python runtime）
+  - container 啟動會先 `alembic upgrade head` 再啟動 `uvicorn`
+- `docker-compose.yml`：一鍵 demo（DB volume: `./data`）
+
+### Release zip
+
+- `scripts/make_release_zip.py`：產生乾淨可交付 zip（排除 tests/cache/db/node_modules）
+- `scripts/validate_release_zip.py`：驗證 zip 內容符合交付標準
+

@@ -1,4 +1,4 @@
-from datetime import date, datetime, timedelta, timezone
+from datetime import date, timedelta
 from typing import Optional
 
 from fastapi import HTTPException
@@ -7,8 +7,8 @@ from sqlmodel import Session, desc, select
 
 from app.models.health_record import HealthRecord
 from app.schemas.health_record import HealthRecordCreate, HealthRecordUpdate
+from app.time import get_today, utcnow
 
-# Database timestamps are UTC naive. Treatment must be consistent system-wide.
 
 def create_record(session: Session, data: HealthRecordCreate) -> HealthRecord:
     # Check for existing record on the same date
@@ -85,7 +85,7 @@ def update_record(
     for key, value in update_data.items():
         setattr(record, key, value)
 
-    record.updated_at = datetime.now(timezone.utc).replace(tzinfo=None)
+    record.updated_at = utcnow()
     session.add(record)
     session.commit()
     session.refresh(record)
@@ -108,7 +108,7 @@ def get_records_by_days(session: Session, days: int, *, anchor_date: Optional[da
     semantics like "last 7 days" are based on the user's calendar expectations.
     """
 
-    end_date = anchor_date or date.today()
+    end_date = anchor_date or get_today()
     start_date = end_date - timedelta(days=days - 1)
     query = select(HealthRecord).where(
         HealthRecord.record_date >= start_date,

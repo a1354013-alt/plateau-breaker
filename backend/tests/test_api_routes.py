@@ -10,12 +10,14 @@ from sqlmodel import Session, SQLModel, create_engine
 from app.api.analytics import router as analytics_router
 from app.api.health_records import router as health_records_router
 from app.database import get_session
+from app.dependencies.clock import get_anchor_date
 from app.models.health_record import (
     HealthRecord,  # noqa: F401  (ensure SQLModel metadata is populated)
 )
+from app.time import get_today
 
 
-def make_client() -> TestClient:
+def make_client(*, anchor: date) -> TestClient:
     engine = create_engine(
         "sqlite://",
         connect_args={"check_same_thread": False},
@@ -31,12 +33,12 @@ def make_client() -> TestClient:
     app.include_router(health_records_router)
     app.include_router(analytics_router)
     app.dependency_overrides[get_session] = override_get_session
+    app.dependency_overrides[get_anchor_date] = lambda: anchor
     return TestClient(app)
 
 
-def seed_last_days(client: TestClient, *, days: int = 8) -> None:
-    today = date.today()
-    start = today - timedelta(days=days - 1)
+def seed_last_days(client: TestClient, *, anchor: date, days: int = 8) -> None:
+    start = anchor - timedelta(days=days - 1)
 
     for i in range(days):
         d = start + timedelta(days=i)
@@ -57,8 +59,9 @@ def seed_last_days(client: TestClient, *, days: int = 8) -> None:
 
 
 def test_dashboard_endpoint_shape_and_weight_change_7d():
-    client = make_client()
-    seed_last_days(client, days=8)  # includes today and today-7
+    anchor = get_today()
+    client = make_client(anchor=anchor)
+    seed_last_days(client, anchor=anchor, days=8)  # includes anchor and anchor-7
 
     res = client.get("/api/analytics/dashboard")
     assert res.status_code == 200
@@ -81,8 +84,9 @@ def test_dashboard_endpoint_shape_and_weight_change_7d():
 
 
 def test_summary_endpoint_shape():
-    client = make_client()
-    seed_last_days(client, days=8)
+    anchor = get_today()
+    client = make_client(anchor=anchor)
+    seed_last_days(client, anchor=anchor, days=8)
 
     res = client.get("/api/analytics/summary", params={"calorie_target": 2000})
     assert res.status_code == 200
@@ -93,7 +97,7 @@ def test_summary_endpoint_shape():
 
 
 def test_query_param_validation():
-    client = make_client()
+    client = make_client(anchor=get_today())
 
     res = client.get("/api/analytics/trends", params={"days": 6})
     assert res.status_code == 422

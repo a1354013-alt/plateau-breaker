@@ -4,6 +4,7 @@ from fastapi import APIRouter, Depends, Query
 from sqlmodel import Session
 
 from app.database import get_session
+from app.dependencies.clock import get_anchor_date
 from app.rules import analyze_reasons, detect_plateau, generate_summary
 from app.schemas.analytics import (
     DashboardResponse,
@@ -18,10 +19,12 @@ router = APIRouter(prefix="/api/analytics", tags=["Analytics"])
 
 
 @router.get("/dashboard", response_model=DashboardResponse)
-def get_dashboard(session: Session = Depends(get_session)):
+def get_dashboard(
+    session: Session = Depends(get_session),
+    anchor: date = Depends(get_anchor_date),
+):
     """Return KPI metrics for the dashboard."""
     all_records = svc.get_all_records_ordered(session)
-    anchor = date.today()
     last7 = svc.get_records_by_days(session, 7, anchor_date=anchor)
 
     current_weight = None
@@ -61,9 +64,10 @@ def get_dashboard(session: Session = Depends(get_session)):
 def get_trends(
     days: int = Query(default=30, ge=7, le=365),
     session: Session = Depends(get_session),
+    anchor: date = Depends(get_anchor_date),
 ):
     """Return time-series data for trend charts."""
-    records = svc.get_records_by_days(session, days, anchor_date=date.today())
+    records = svc.get_records_by_days(session, days, anchor_date=anchor)
 
     trend_data = [
         {
@@ -85,31 +89,36 @@ def get_trends(
 
 
 @router.get("/plateau", response_model=PlateauResponse)
-def get_plateau(session: Session = Depends(get_session)):
+def get_plateau(
+    session: Session = Depends(get_session),
+    anchor: date = Depends(get_anchor_date),
+):
     """Detect current plateau status."""
     all_records = svc.get_all_records_ordered(session)
-    return detect_plateau(all_records, anchor_date=date.today())
+    return detect_plateau(all_records, anchor_date=anchor)
 
 
 @router.get("/reasons", response_model=ReasonsResponse)
 def get_reasons(
     calorie_target: int = Query(default=2000, ge=1000, le=5000),
     session: Session = Depends(get_session),
+    anchor: date = Depends(get_anchor_date),
 ):
     """Analyse reasons for weight plateau."""
     all_records = svc.get_all_records_ordered(session)
-    return analyze_reasons(all_records, calorie_target, anchor_date=date.today())
+    return analyze_reasons(all_records, calorie_target, anchor_date=anchor)
 
 
 @router.get("/summary", response_model=SummaryResponse)
 def get_summary(
     calorie_target: int = Query(default=2000, ge=1000, le=5000),
     session: Session = Depends(get_session),
+    anchor: date = Depends(get_anchor_date),
 ):
     """Generate human-readable summary combining plateau status and reasons."""
     all_records = svc.get_all_records_ordered(session)
-    plateau_result = detect_plateau(all_records, anchor_date=date.today())
-    reason_result = analyze_reasons(all_records, calorie_target, anchor_date=date.today())
+    plateau_result = detect_plateau(all_records, anchor_date=anchor)
+    reason_result = analyze_reasons(all_records, calorie_target, anchor_date=anchor)
     summary = generate_summary(plateau_result, reason_result)
 
     return SummaryResponse(plateau=plateau_result, reasons=reason_result, summary=summary)

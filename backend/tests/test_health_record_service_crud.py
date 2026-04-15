@@ -1,19 +1,21 @@
 from __future__ import annotations
 
-from datetime import date
+from datetime import timedelta
 
 import pytest
 from fastapi import HTTPException
 
 from app.schemas.health_record import HealthRecordCreate, HealthRecordUpdate
 from app.services import health_record_service as svc
+from app.time import get_today
 
 
 def test_create_get_update_delete_record(session):
+    record_date = get_today() - timedelta(days=1)
     created = svc.create_record(
         session,
         HealthRecordCreate(
-            record_date=date(2026, 4, 1),
+            record_date=record_date,
             weight=75.2,
             sleep_hours=7.0,
             calories=1900,
@@ -27,7 +29,7 @@ def test_create_get_update_delete_record(session):
 
     fetched = svc.get_record(session, created.id)
     assert fetched is not None
-    assert fetched.record_date == date(2026, 4, 1)
+    assert fetched.record_date == record_date
     assert fetched.weight == pytest.approx(75.2)
 
     updated = svc.update_record(
@@ -45,10 +47,11 @@ def test_create_get_update_delete_record(session):
 
 
 def test_create_same_date_conflict(session):
+    record_date = get_today() - timedelta(days=1)
     svc.create_record(
         session,
         HealthRecordCreate(
-            record_date=date(2026, 4, 1),
+            record_date=record_date,
             weight=75.0,
             sleep_hours=7.0,
             calories=2000,
@@ -60,7 +63,7 @@ def test_create_same_date_conflict(session):
         svc.create_record(
             session,
             HealthRecordCreate(
-                record_date=date(2026, 4, 1),
+                record_date=record_date,
                 weight=75.1,
                 sleep_hours=7.0,
                 calories=2000,
@@ -69,4 +72,3 @@ def test_create_same_date_conflict(session):
         )
 
     assert exc.value.status_code == 409
-

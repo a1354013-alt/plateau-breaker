@@ -17,10 +17,11 @@ from app.schemas.analytics import (
     SummaryResponse,
     TrendsResponse,
 )
+from app.time import get_today
 
 
-def _seed_records(session, days: int = 14) -> None:
-    start = date.today() - timedelta(days=days - 1)
+def _seed_records(session, *, anchor: date, days: int = 14) -> None:
+    start = anchor - timedelta(days=days - 1)
     for i in range(days):
         d = start + timedelta(days=i)
         session.add(
@@ -40,28 +41,28 @@ def _seed_records(session, days: int = 14) -> None:
 
 
 def test_dashboard_trends_plateau_reasons_summary_shapes(session):
-    _seed_records(session, days=14)
+    anchor = get_today()
+    _seed_records(session, anchor=anchor, days=14)
 
-    dashboard = get_dashboard(session=session)
+    dashboard = get_dashboard(session=session, anchor=anchor)
     assert isinstance(dashboard, DashboardResponse)
     assert dashboard.total_records == 14
 
-    trends = get_trends(days=30, session=session)
+    trends = get_trends(days=30, session=session, anchor=anchor)
     assert isinstance(trends, TrendsResponse)
     assert trends.days == 30
     assert trends.data_points >= 0
 
-    plateau = get_plateau(session=session)
+    plateau = get_plateau(session=session, anchor=anchor)
     assert isinstance(plateau, PlateauResponse)
     assert plateau.status in ("losing", "plateau", "gaining", "insufficient_data")
 
-    reasons = get_reasons(calorie_target=2000, session=session)
+    reasons = get_reasons(calorie_target=2000, session=session, anchor=anchor)
     assert isinstance(reasons, ReasonsResponse)
     assert reasons.status in ("ok", "insufficient_data")
     assert isinstance(reasons.reasons, list)
 
-    summary = get_summary(calorie_target=2000, session=session)
+    summary = get_summary(calorie_target=2000, session=session, anchor=anchor)
     assert isinstance(summary, SummaryResponse)
     assert summary.summary.text is not None
     assert summary.summary.status in ("losing", "plateau", "gaining", "insufficient_data")
-

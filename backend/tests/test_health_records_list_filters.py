@@ -1,6 +1,6 @@
 from __future__ import annotations
 
-from datetime import date
+from datetime import date, timedelta
 
 from fastapi import FastAPI
 from fastapi.testclient import TestClient
@@ -12,6 +12,7 @@ from app.database import get_session
 from app.models.health_record import (
     HealthRecord,  # noqa: F401  (ensure SQLModel metadata is populated)
 )
+from app.time import get_today
 
 
 def make_client() -> TestClient:
@@ -48,9 +49,10 @@ def seed(client: TestClient, d: date, *, weight: float) -> None:
 
 def test_list_filters_are_inclusive_and_sorted_desc():
     client = make_client()
-    d1 = date(2026, 4, 1)
-    d2 = date(2026, 4, 2)
-    d3 = date(2026, 4, 3)
+    base = get_today() - timedelta(days=10)
+    d1 = base
+    d2 = base + timedelta(days=1)
+    d3 = base + timedelta(days=2)
 
     seed(client, d1, weight=75.0)
     seed(client, d2, weight=74.8)
@@ -75,8 +77,9 @@ def test_list_filters_are_inclusive_and_sorted_desc():
 
 def test_list_rejects_start_date_after_end_date():
     client = make_client()
-    d1 = date(2026, 4, 1)
-    d2 = date(2026, 4, 2)
+    base = get_today() - timedelta(days=10)
+    d1 = base
+    d2 = base + timedelta(days=1)
 
     seed(client, d1, weight=75.0)
     seed(client, d2, weight=74.8)
@@ -90,9 +93,10 @@ def test_list_rejects_start_date_after_end_date():
 
 def test_list_accepts_valid_date_range():
     client = make_client()
-    d1 = date(2026, 4, 1)
-    d2 = date(2026, 4, 2)
-    d3 = date(2026, 4, 3)
+    base = get_today() - timedelta(days=10)
+    d1 = base
+    d2 = base + timedelta(days=1)
+    d3 = base + timedelta(days=2)
 
     seed(client, d1, weight=75.0)
     seed(client, d2, weight=74.8)
