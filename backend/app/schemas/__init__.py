@@ -1,9 +1,11 @@
 from .analytics import (
+    ActionRecommendation,
     DashboardResponse,
     PlateauResponse,
     ReasonsResponse,
     SummaryResponse,
     TrendsResponse,
+    WeeklyReportResponse,
 )
 from .health_record import (
     HealthRecordCreate,
@@ -11,6 +13,7 @@ from .health_record import (
     HealthRecordResponse,
     HealthRecordUpdate,
 )
+from .profile import ProfileResponse, ProfileUpdate
 
 __all__ = [
     "HealthRecordCreate",
@@ -22,4 +25,8 @@ __all__ = [
     "PlateauResponse",
     "ReasonsResponse",
     "SummaryResponse",
+    "ActionRecommendation",
+    "WeeklyReportResponse",
+    "ProfileResponse",
+    "ProfileUpdate",
 ]

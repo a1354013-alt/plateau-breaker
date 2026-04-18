@@ -27,11 +27,9 @@ const API_PATHS = {
   analyticsPlateau: '/api/analytics/plateau' as const satisfies ApiPath,
   analyticsReasons: '/api/analytics/reasons' as const satisfies ApiPath,
   analyticsSummary: '/api/analytics/summary' as const satisfies ApiPath,
+  profile: '/api/profile' as const,
+  weeklyReport: '/api/report/weekly' as const,
 } as const
-
-// ----------------------------------------------------------------------------
-// Types (API contracts)
-// ----------------------------------------------------------------------------
 
 export type HealthRecord = components['schemas']['HealthRecordResponse']
 export type HealthRecordCreate = components['schemas']['HealthRecordCreate']
@@ -43,12 +41,60 @@ export type TrendPoint = components['schemas']['TrendPoint']
 export type TrendsData = components['schemas']['TrendsResponse']
 export type PlateauData = components['schemas']['PlateauResponse']
 export type ReasonItem = components['schemas']['ReasonItem']
-export type ReasonsData = components['schemas']['ReasonsResponse']
-export type SummaryData = components['schemas']['SummaryResponse']
+export type ReasonsData = components['schemas']['ReasonsResponse'] & {
+  missing_dates?: string[]
+}
 
-// ----------------------------------------------------------------------------
-// Health Records API
-// ----------------------------------------------------------------------------
+type SummaryPayloadBase = {
+  text: string
+  insight: string
+  status: string
+  top_reasons: string[]
+}
+
+export type FactorContribution = {
+  factor: string
+  impact_percent: number
+  confidence: number
+}
+
+export type Recommendation = {
+  priority: number
+  message: string
+  confidence: number
+}
+
+export type SummaryData = {
+  plateau: PlateauData
+  reasons: ReasonsData
+  summary: SummaryPayloadBase & { factor_contributions?: FactorContribution[] }
+  recommendations?: Recommendation[]
+}
+
+export type ProfileData = {
+  id: number
+  target_weight: number | null
+  daily_calorie_target: number
+  protein_target: number | null
+  weekly_workout_target: number | null
+  created_at: string
+  updated_at: string
+}
+
+export type ProfileUpdate = {
+  target_weight: number | null
+  daily_calorie_target: number
+  protein_target: number | null
+  weekly_workout_target: number | null
+}
+
+export type WeeklyReportData = {
+  summary: SummaryData['summary']
+  metrics: DashboardData
+  plateau_status: string
+  reasons: ReasonItem[]
+  recommendations: Recommendation[]
+}
 
 export const healthRecordsApi = {
   list(params?: { skip?: number; limit?: number; start_date?: string; end_date?: string }) {
@@ -72,10 +118,6 @@ export const healthRecordsApi = {
   },
 }
 
-// ----------------------------------------------------------------------------
-// Analytics API
-// ----------------------------------------------------------------------------
-
 export const analyticsApi = {
   dashboard() {
     return api.get<DashboardData>(API_PATHS.analyticsDashboard)
@@ -95,10 +137,24 @@ export const analyticsApi = {
     })
   },
 
-  summary(calorieTarget: number) {
+  summary(calorieTarget?: number) {
     return api.get<SummaryData>(API_PATHS.analyticsSummary, {
-      params: { calorie_target: calorieTarget },
+      params: calorieTarget ? { calorie_target: calorieTarget } : {},
     })
+  },
+
+  weeklyReport() {
+    return api.get<WeeklyReportData>(API_PATHS.weeklyReport)
+  },
+}
+
+export const profileApi = {
+  get() {
+    return api.get<ProfileData>(API_PATHS.profile)
+  },
+
+  update(data: ProfileUpdate) {
+    return api.put<ProfileData>(API_PATHS.profile, data)
   },
 }
 

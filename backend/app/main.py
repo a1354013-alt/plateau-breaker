@@ -12,7 +12,7 @@ from starlette.middleware.base import BaseHTTPMiddleware
 from starlette.requests import Request
 from starlette.responses import Response
 
-from app.api import analytics_router, health_records_router
+from app.api import analytics_router, health_records_router, profile_router, report_router
 from app.database import create_db_and_tables
 from app.version import get_version_info
 
@@ -62,6 +62,8 @@ app.add_middleware(
 # Register routers
 app.include_router(health_records_router)
 app.include_router(analytics_router)
+app.include_router(profile_router)
+app.include_router(report_router)
 
 _dist_dir = Path(
     os.getenv("PLATEAUBREAKER_FRONTEND_DIST_DIR")

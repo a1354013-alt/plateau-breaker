@@ -5,17 +5,20 @@ from sqlmodel import Session
 
 from app.database import get_session
 from app.dependencies.clock import get_anchor_date
-from app.rules import analyze_reasons, detect_plateau, generate_summary
+from app.rules import analyze_reasons, detect_plateau, generate_recommendations, generate_summary
 from app.schemas.analytics import (
     DashboardResponse,
     PlateauResponse,
     ReasonsResponse,
     SummaryResponse,
     TrendsResponse,
+    WeeklyReportResponse,
 )
 from app.services import health_record_service as svc
+from app.services.profile_service import get_or_create_profile
 
 router = APIRouter(prefix="/api/analytics", tags=["Analytics"])
+report_router = APIRouter(prefix="/api/report", tags=["Report"])
 
 
 @router.get("/dashboard", response_model=DashboardResponse)
@@ -23,13 +26,10 @@ def get_dashboard(
     session: Session = Depends(get_session),
     anchor: date = Depends(get_anchor_date),
 ):
-    """Return KPI metrics for the dashboard."""
     all_records = svc.get_all_records_ordered(session)
     last7 = svc.get_records_by_days(session, 7, anchor_date=anchor)
 
-    current_weight = None
-    if all_records:
-        current_weight = all_records[-1].weight
+    current_weight = all_records[-1].weight if all_records else None
 
     avg_weight_7d = None
     avg_sleep_7d = None
@@ -40,8 +40,6 @@ def get_dashboard(
         avg_sleep_7d = round(sum(r.sleep_hours for r in last7) / len(last7), 2)
         avg_calories_7d = round(sum(r.calories for r in last7) / len(last7), 1)
 
-    # Weight change vs 7 days ago (same calendar date). If the exact date is missing, return None.
-    # This is only computed when there is an exact record on the anchor date.
     weight_change_7d = None
     if all_records and current_weight is not None:
         weight_by_date = {r.record_date: r.weight for r in all_records}
@@ -66,7 +64,6 @@ def get_trends(
     session: Session = Depends(get_session),
     anchor: date = Depends(get_anchor_date),
 ):
-    """Return time-series data for trend charts."""
     records = svc.get_records_by_days(session, days, anchor_date=anchor)
 
     trend_data = [
@@ -93,7 +90,6 @@ def get_plateau(
     session: Session = Depends(get_session),
     anchor: date = Depends(get_anchor_date),
 ):
-    """Detect current plateau status."""
     all_records = svc.get_all_records_ordered(session)
     return detect_plateau(all_records, anchor_date=anchor)
 
@@ -104,21 +100,41 @@ def get_reasons(
     session: Session = Depends(get_session),
     anchor: date = Depends(get_anchor_date),
 ):
-    """Analyse reasons for weight plateau."""
     all_records = svc.get_all_records_ordered(session)
     return analyze_reasons(all_records, calorie_target, anchor_date=anchor)
 
 
 @router.get("/summary", response_model=SummaryResponse)
 def get_summary(
-    calorie_target: int = Query(default=2000, ge=1000, le=5000),
+    calorie_target: int | None = Query(default=None, ge=1000, le=5000),
     session: Session = Depends(get_session),
     anchor: date = Depends(get_anchor_date),
 ):
-    """Generate human-readable summary combining plateau status and reasons."""
     all_records = svc.get_all_records_ordered(session)
+    profile = get_or_create_profile(session)
+    effective_calorie_target = calorie_target or profile.daily_calorie_target
+
     plateau_result = detect_plateau(all_records, anchor_date=anchor)
-    reason_result = analyze_reasons(all_records, calorie_target, anchor_date=anchor)
+    reason_result = analyze_reasons(all_records, effective_calorie_target, anchor_date=anchor)
     summary = generate_summary(plateau_result, reason_result)
 
-    return SummaryResponse(plateau=plateau_result, reasons=reason_result, summary=summary)
+    payload = SummaryResponse(plateau=plateau_result, reasons=reason_result, summary=summary)
+    payload.recommendations = generate_recommendations(payload)
+    return payload
+
+
+@report_router.get("/weekly", response_model=WeeklyReportResponse)
+def get_weekly_report(
+    session: Session = Depends(get_session),
+    anchor: date = Depends(get_anchor_date),
+):
+    summary_payload = get_summary(session=session, anchor=anchor)
+    metrics = get_dashboard(session=session, anchor=anchor)
+
+    return WeeklyReportResponse(
+        summary=summary_payload.summary,
+        metrics=metrics,
+        plateau_status=summary_payload.plateau.status,
+        reasons=summary_payload.reasons.reasons,
+        recommendations=summary_payload.recommendations,
+    )

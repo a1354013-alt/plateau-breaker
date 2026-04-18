@@ -1,20 +1,6 @@
 """app.rules.reason_analyzer
 
 Reason analysis is evaluated over the last 7 calendar days.
-
-Minimum data requirement:
-- At least 5 recorded days within the last 7-day window.
-
-Reason codes:
-- SleepIssue
-- CalorieIssue
-- WeekendOvereating
-- ExerciseDrop
-- DataMissing
-
-Notes:
-- The caller may provide an explicit anchor_date (e.g. "today"). If omitted,
-  the latest record date is used.
 """
 
 from __future__ import annotations
@@ -25,13 +11,12 @@ from app.models.health_record import HealthRecord
 from app.rules.constants import MIN_RECENT_DAYS, WINDOW_DAYS
 from app.schemas.analytics import ReasonItem, ReasonsResponse
 
-# Severity weights for each reason type (normalized to 0-1 scale)
 SEVERITY_WEIGHTS: dict[str, float] = {
     "SleepIssue": 1.0,
     "CalorieIssue": 1.0,
     "WeekendOvereating": 0.8,
     "ExerciseDrop": 0.8,
-    "DataMissing": 1.2,  # Prioritize missing data: it affects confidence
+    "DataMissing": 1.2,
 }
 
 SLEEP_THRESHOLD_HOURS = 6.0
@@ -46,12 +31,6 @@ def analyze_reasons(
     *,
     anchor_date: date | None = None,
 ) -> ReasonsResponse:
-    """Return ranked reasons for plateau.
-
-    - records must be sorted by record_date ascending.
-    - anchor_date defaults to the latest record_date.
-    """
-
     if not records:
         return ReasonsResponse(
             status="insufficient_data",
@@ -60,6 +39,7 @@ def analyze_reasons(
             all_reasons=[],
             data_points=0,
             missing_days=WINDOW_DAYS,
+            missing_dates=[],
         )
 
     anchor = anchor_date or records[-1].record_date
@@ -71,9 +51,10 @@ def analyze_reasons(
     last7 = [r for r in records if last_start <= r.record_date <= anchor]
     prev7 = [r for r in records if prev_start <= r.record_date <= prev_end]
 
-    expected_dates = {last_start + timedelta(days=i) for i in range(WINDOW_DAYS)}
+    expected_dates = [last_start + timedelta(days=i) for i in range(WINDOW_DAYS)]
     actual_dates = {r.record_date for r in last7}
-    missing_count = len(expected_dates - actual_dates)
+    missing_dates = [d.isoformat() for d in expected_dates if d not in actual_dates]
+    missing_count = len(missing_dates)
 
     if len(last7) < MIN_RECENT_DAYS:
         return ReasonsResponse(
@@ -85,11 +66,11 @@ def analyze_reasons(
             all_reasons=[],
             data_points=len(last7),
             missing_days=missing_count,
+            missing_dates=missing_dates,
         )
 
     reasons: list[ReasonItem] = []
 
-    # Rule 1: Sleep Issue
     avg_sleep = sum(r.sleep_hours for r in last7) / len(last7)
     if avg_sleep < SLEEP_THRESHOLD_HOURS:
         reasons.append(
@@ -111,7 +92,6 @@ def analyze_reasons(
             )
         )
 
-    # Rule 2: Calorie Issue
     avg_calories = sum(r.calories for r in last7) / len(last7)
     if avg_calories > calorie_target:
         excess_ratio = (avg_calories - calorie_target) / float(calorie_target)
@@ -134,7 +114,6 @@ def analyze_reasons(
             )
         )
 
-    # Rule 3: Weekend Overeating
     weekend_records = [r for r in last7 if r.record_date.weekday() >= 5]
     weekday_records = [r for r in last7 if r.record_date.weekday() < 5]
     if weekend_records and weekday_records:
@@ -161,7 +140,6 @@ def analyze_reasons(
                 )
             )
 
-    # Rule 4: Exercise Drop (requires previous window)
     if prev7 and len(prev7) >= MIN_RECENT_DAYS:
         last_exercise = sum(r.exercise_minutes for r in last7) / len(last7)
         prev_exercise = sum(r.exercise_minutes for r in prev7) / len(prev7)
@@ -185,7 +163,6 @@ def analyze_reasons(
                 )
             )
 
-    # Rule 5: Data Missing
     if missing_count > MAX_MISSING_DAYS:
         reasons.append(
             ReasonItem(
@@ -195,7 +172,7 @@ def analyze_reasons(
                 severity=round((missing_count / float(WINDOW_DAYS)) * SEVERITY_WEIGHTS["DataMissing"], 3),
                 value=float(missing_count),
                 threshold=float(MAX_MISSING_DAYS),
-                details={"missing_days": missing_count},
+                details={"missing_days": missing_count, "missing_dates": missing_dates},
             )
         )
 
@@ -203,7 +180,6 @@ def analyze_reasons(
     top2 = reasons[:2]
 
     message = None
-
     if missing_count > 0:
         message = (
             f"Analysis based on {len(last7)}/{WINDOW_DAYS} days of data. "
@@ -216,5 +192,6 @@ def analyze_reasons(
         all_reasons=reasons,
         data_points=len(last7),
         missing_days=missing_count,
+        missing_dates=missing_dates,
         message=message,
     )

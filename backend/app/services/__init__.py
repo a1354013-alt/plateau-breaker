@@ -7,6 +7,7 @@ from .health_record_service import (
     get_records_by_days,
     update_record,
 )
+from .profile_service import get_or_create_profile, update_profile
 
 __all__ = [
     "create_record",
@@ -16,4 +17,6 @@ __all__ = [
     "delete_record",
     "get_records_by_days",
     "get_all_records_ordered",
+    "get_or_create_profile",
+    "update_profile",
 ]

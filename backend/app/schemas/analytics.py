@@ -57,6 +57,18 @@ class ReasonItem(BaseModel):
     details: Optional[dict[str, Any]] = None
 
 
+class FactorContribution(BaseModel):
+    factor: str
+    impact_percent: int = Field(..., ge=0, le=100)
+    confidence: float = Field(..., ge=0, le=1)
+
+
+class ActionRecommendation(BaseModel):
+    priority: int = Field(..., ge=1)
+    message: str
+    confidence: float = Field(..., ge=0, le=1)
+
+
 class ReasonsResponse(BaseModel):
     status: ReasonsStatus = "ok"
     message: Optional[str] = None
@@ -64,6 +76,7 @@ class ReasonsResponse(BaseModel):
     all_reasons: list[ReasonItem]
     data_points: int = Field(..., ge=0)
     missing_days: int = Field(..., ge=0, le=7)
+    missing_dates: list[str] = Field(default_factory=list)
 
 
 class SummaryPayload(BaseModel):
@@ -71,9 +84,19 @@ class SummaryPayload(BaseModel):
     insight: str
     status: PlateauStatus
     top_reasons: list[str]
+    factor_contributions: list[FactorContribution] = Field(default_factory=list)
+
+
+class WeeklyReportResponse(BaseModel):
+    summary: SummaryPayload
+    metrics: DashboardResponse
+    plateau_status: PlateauStatus
+    reasons: list[ReasonItem]
+    recommendations: list[ActionRecommendation]
 
 
 class SummaryResponse(BaseModel):
     plateau: PlateauResponse
     reasons: ReasonsResponse
     summary: SummaryPayload
+    recommendations: list[ActionRecommendation] = Field(default_factory=list)

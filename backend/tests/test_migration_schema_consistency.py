@@ -26,6 +26,7 @@ def test_alembic_upgraded_schema_matches_sqlmodel_contract():
             inspector = sa.inspect(engine)
 
             assert "health_records" in inspector.get_table_names()
+            assert "profile" in inspector.get_table_names()
 
             cols = {c["name"]: c for c in inspector.get_columns("health_records")}
 

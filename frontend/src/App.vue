@@ -3,36 +3,25 @@
     <nav class="topnav">
       <div class="topnav-inner">
         <router-link to="/" class="brand">
-          <span class="brand-icon">⚡</span>
+          <span class="brand-icon">PB</span>
           <span class="brand-name">PlateauBreaker</span>
         </router-link>
         <div class="nav-links">
-          <router-link
-            to="/"
-            class="nav-link"
-            active-class="nav-link-active"
-            exact-active-class="nav-link-active"
-          >
+          <router-link to="/" class="nav-link" active-class="nav-link-active" exact-active-class="nav-link-active">
             <i class="pi pi-chart-line" />
             <span>Dashboard</span>
           </router-link>
-          <router-link
-            to="/records"
-            class="nav-link"
-            active-class="nav-link-active"
-            exact-active-class="nav-link-active"
-          >
+          <router-link to="/records" class="nav-link" active-class="nav-link-active" exact-active-class="nav-link-active">
             <i class="pi pi-calendar" />
             <span>Records</span>
           </router-link>
-          <router-link
-            to="/analysis"
-            class="nav-link"
-            active-class="nav-link-active"
-            exact-active-class="nav-link-active"
-          >
+          <router-link to="/analysis" class="nav-link" active-class="nav-link-active" exact-active-class="nav-link-active">
             <i class="pi pi-search" />
             <span>Analysis</span>
+          </router-link>
+          <router-link to="/profile" class="nav-link" active-class="nav-link-active" exact-active-class="nav-link-active">
+            <i class="pi pi-user" />
+            <span>Profile</span>
           </router-link>
         </div>
       </div>
@@ -59,10 +48,10 @@ import Toast from 'primevue/toast'
   position: sticky;
   top: 0;
   z-index: 100;
-  background: rgba(255,255,255,0.96);
+  background: rgba(255, 255, 255, 0.96);
   backdrop-filter: blur(8px);
   border-bottom: 1px solid var(--color-border);
-  box-shadow: 0 1px 4px rgba(0,0,0,0.06);
+  box-shadow: 0 1px 4px rgba(0, 0, 0, 0.06);
 }
 .topnav-inner {
   max-width: 1100px;
@@ -82,14 +71,23 @@ import Toast from 'primevue/toast'
   font-size: 1.1rem;
   color: var(--color-text-primary);
 }
-.brand-icon { font-size: 1.3rem; }
+.brand-icon {
+  font-size: 0.9rem;
+  border: 1px solid #6366f1;
+  color: #6366f1;
+  padding: 0 6px;
+  border-radius: 999px;
+}
 .brand-name {
   background: linear-gradient(135deg, #6366f1, #8b5cf6);
   -webkit-background-clip: text;
   -webkit-text-fill-color: transparent;
   background-clip: text;
 }
-.nav-links { display: flex; gap: 4px; }
+.nav-links {
+  display: flex;
+  gap: 4px;
+}
 .nav-link {
   display: flex;
   align-items: center;
@@ -102,12 +100,27 @@ import Toast from 'primevue/toast'
   color: var(--color-text-secondary);
   transition: all 0.15s ease;
 }
-.nav-link:hover { background: #f1f5f9; color: var(--color-text-primary); }
-.nav-link-active { background: #eef2ff; color: var(--color-accent); font-weight: 600; }
-.main-content { flex: 1; }
-@media (max-width: 480px) {
-  .nav-link span { display: none; }
-  .nav-link { padding: 6px 10px; }
-  .brand-name { display: none; }
+.nav-link:hover {
+  background: #f1f5f9;
+  color: var(--color-text-primary);
+}
+.nav-link-active {
+  background: #eef2ff;
+  color: var(--color-accent);
+  font-weight: 600;
+}
+.main-content {
+  flex: 1;
+}
+@media (max-width: 640px) {
+  .nav-link span {
+    display: none;
+  }
+  .nav-link {
+    padding: 6px 10px;
+  }
+  .brand-name {
+    display: none;
+  }
 }
 </style>

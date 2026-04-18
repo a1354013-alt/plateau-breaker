@@ -19,6 +19,12 @@ const routes: RouteRecordRaw[] = [
     component: () => import('@/views/Analysis.vue'),
     meta: { title: 'Plateau Analysis' },
   },
+  {
+    path: '/profile',
+    name: 'Profile',
+    component: () => import('@/views/Profile.vue'),
+    meta: { title: 'Profile Goals' },
+  },
 ]
 
 const router = createRouter({
