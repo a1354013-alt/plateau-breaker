@@ -1,7 +1,7 @@
 import { describe, expect, it, vi } from 'vitest'
-import { mount } from '@vue/test-utils'
 
 import Dashboard from '@/views/Dashboard.vue'
+import { mountWithApp } from '@/test/mountWithApp'
 
 function makeStore(overrides: Record<string, unknown> = {}) {
   return {
@@ -25,12 +25,12 @@ function makeStore(overrides: Record<string, unknown> = {}) {
   }
 }
 
-let store = makeStore()
+const store = makeStore()
 vi.mock('@/stores/analytics', () => ({ useAnalyticsStore: () => store }))
 
 describe('Dashboard view', () => {
   it('shows freshness indicator', () => {
-    const wrapper = mount(Dashboard, { global: { stubs: { RouterLink: true, Button: true } } })
+    const wrapper = mountWithApp(Dashboard, { global: { stubs: { Button: true } } })
     expect(wrapper.text()).toContain('Freshness')
   })
 })

@@ -126,7 +126,7 @@ def detect_plateau(records: list[HealthRecord], *, anchor_date: date | None = No
             status = "losing" if direction < 0 else "gaining"
 
     message = None
-    if data_completeness < 1.0 and status != "insufficient_data":
+    if data_completeness < 1.0:
         message = (
             f"Analysis based on {len(last7)}/{WINDOW_DAYS} days of data. "
             "Confidence reduced due to missing days."

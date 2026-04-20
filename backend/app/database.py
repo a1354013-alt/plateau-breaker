@@ -1,10 +1,12 @@
 from __future__ import annotations
 
 import os
+from collections.abc import Generator
 from pathlib import Path
-from typing import Generator
+from typing import Optional
 
 from sqlalchemy import inspect
+from sqlalchemy.engine import Engine
 from sqlmodel import Session, create_engine
 
 
@@ -50,30 +52,69 @@ def _resolve_db_url() -> str:
     return f"sqlite:///{db_path.as_posix()}"
 
 
-DATABASE_URL = _resolve_db_url()
+def resolve_database_url() -> str:
+    """Compute the SQLAlchemy URL based on current env/config."""
 
-engine = create_engine(
-    DATABASE_URL,
-    connect_args={"check_same_thread": False},
-    echo=False,
-)
+    return _resolve_db_url()
+
+# Back-compat constants: these reflect env at import time.
+DATABASE_URL = resolve_database_url()
 
 
-def create_db_and_tables():
+_engines_by_url: dict[str, Engine] = {}
+
+
+def get_engine(*, sqlalchemy_url: Optional[str] = None) -> Engine:
+    """Return a (cached) Engine for the given URL (or current env URL)."""
+
+    url = sqlalchemy_url or resolve_database_url()
+    engine = _engines_by_url.get(url)
+    if engine is None:
+        engine = create_engine(
+            url,
+            connect_args={"check_same_thread": False},
+            echo=False,
+        )
+        _engines_by_url[url] = engine
+    return engine
+
+
+def dispose_engine(*, sqlalchemy_url: Optional[str] = None) -> None:
+    """Dispose one engine (by URL) or all cached engines."""
+
+    if sqlalchemy_url is None:
+        urls = list(_engines_by_url.keys())
+        for url in urls:
+            engine = _engines_by_url.pop(url, None)
+            if engine is not None:
+                engine.dispose()
+        return
+
+    engine = _engines_by_url.pop(sqlalchemy_url, None)
+    if engine is not None:
+        engine.dispose()
+
+
+# Back-compat name: some scripts import this directly.
+engine = get_engine(sqlalchemy_url=DATABASE_URL)
+
+
+def create_db_and_tables() -> None:
     ensure_db_dir_exists()
     # Bootstrap only when the database is empty. We intentionally apply Alembic
     # migrations instead of `SQLModel.metadata.create_all` so DB-level contracts
     # (CHECK constraints, column lengths, etc.) are enforced even if someone
     # writes directly to the DB without going through the API.
-    inspector = inspect(engine)
+    url = resolve_database_url()
+    inspector = inspect(get_engine(sqlalchemy_url=url))
     if inspector.get_table_names():
         return
     from app.migrations import upgrade_to_head
 
-    upgrade_to_head(sqlalchemy_url=DATABASE_URL)
+    upgrade_to_head(sqlalchemy_url=url)
 
 
 def get_session() -> Generator[Session, None, None]:
     ensure_db_dir_exists()
-    with Session(engine) as session:
+    with Session(get_engine()) as session:
         yield session

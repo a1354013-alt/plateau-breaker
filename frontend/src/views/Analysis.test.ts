@@ -1,7 +1,9 @@
 import { describe, expect, it, vi } from 'vitest'
-import { mount } from '@vue/test-utils'
 
 import Analysis from '@/views/Analysis.vue'
+import { mountWithApp } from '@/test/mountWithApp'
+
+vi.mock('./analysisDownload', () => ({ saveAs: vi.fn() }))
 
 const push = vi.fn()
 vi.mock('vue-router', async (importOriginal) => {
@@ -47,11 +49,23 @@ vi.mock('@/services/api', async (importOriginal) => {
 describe('Analysis view', () => {
   it('renders missing days and routes to record add page', async () => {
     store = makeStore()
-    const wrapper = mount(Analysis, { global: { stubs: { RouterLink: true } } })
+    const wrapper = mountWithApp(Analysis)
     expect(wrapper.text()).toContain('Missing Days')
     const addBtn = wrapper.findAll('button').find((b) => b.text().includes('Add'))
     expect(addBtn).toBeTruthy()
     await addBtn!.trigger('click')
-    expect(push).toHaveBeenCalled()
+    expect(push).toHaveBeenCalledWith('/records?date=2026-04-10')
+  })
+
+  it('exports weekly report', async () => {
+    store = makeStore({ summaryStatus: { loading: false, error: null } })
+    const { analyticsApi } = await import('@/services/api')
+
+    const wrapper = mountWithApp(Analysis)
+    const exportButton = wrapper.findAll('button').find((b) => b.text().includes('Export Weekly Report'))
+    expect(exportButton).toBeTruthy()
+    await exportButton!.trigger('click')
+
+    expect(vi.mocked(analyticsApi.weeklyReport)).toHaveBeenCalledTimes(1)
   })
 })

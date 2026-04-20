@@ -11,10 +11,7 @@ export interface paths {
             path?: never;
             cookie?: never;
         };
-        /**
-         * Get Dashboard
-         * @description Return KPI metrics for the dashboard.
-         */
+        /** Get Dashboard */
         get: operations["get_dashboard_api_analytics_dashboard_get"];
         put?: never;
         post?: never;
@@ -31,10 +28,7 @@ export interface paths {
             path?: never;
             cookie?: never;
         };
-        /**
-         * Get Plateau
-         * @description Detect current plateau status.
-         */
+        /** Get Plateau */
         get: operations["get_plateau_api_analytics_plateau_get"];
         put?: never;
         post?: never;
@@ -51,10 +45,7 @@ export interface paths {
             path?: never;
             cookie?: never;
         };
-        /**
-         * Get Reasons
-         * @description Analyse reasons for weight plateau.
-         */
+        /** Get Reasons */
         get: operations["get_reasons_api_analytics_reasons_get"];
         put?: never;
         post?: never;
@@ -71,10 +62,7 @@ export interface paths {
             path?: never;
             cookie?: never;
         };
-        /**
-         * Get Summary
-         * @description Generate human-readable summary combining plateau status and reasons.
-         */
+        /** Get Summary */
         get: operations["get_summary_api_analytics_summary_get"];
         put?: never;
         post?: never;
@@ -91,10 +79,7 @@ export interface paths {
             path?: never;
             cookie?: never;
         };
-        /**
-         * Get Trends
-         * @description Return time-series data for trend charts.
-         */
+        /** Get Trends */
         get: operations["get_trends_api_analytics_trends_get"];
         put?: never;
         post?: never;
@@ -158,6 +143,41 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/api/profile": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** Get Profile */
+        get: operations["get_profile_api_profile_get"];
+        /** Put Profile */
+        put: operations["put_profile_api_profile_put"];
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/report/weekly": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** Get Weekly Report */
+        get: operations["get_weekly_report_api_report_weekly_get"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/health": {
         parameters: {
             query?: never;
@@ -179,6 +199,15 @@ export interface paths {
 export type webhooks = Record<string, never>;
 export interface components {
     schemas: {
+        /** ActionRecommendation */
+        ActionRecommendation: {
+            /** Confidence */
+            confidence: number;
+            /** Message */
+            message: string;
+            /** Priority */
+            priority: number;
+        };
         /** DashboardResponse */
         DashboardResponse: {
             /** Avg Calories 7D */
@@ -198,6 +227,15 @@ export interface components {
             total_records: number;
             /** Weight Change 7D */
             weight_change_7d?: number | null;
+        };
+        /** FactorContribution */
+        FactorContribution: {
+            /** Confidence */
+            confidence: number;
+            /** Factor */
+            factor: string;
+            /** Impact Percent */
+            impact_percent: number;
         };
         /** HTTPValidationError */
         HTTPValidationError: {
@@ -335,6 +373,37 @@ export interface components {
              */
             status: "losing" | "plateau" | "gaining" | "insufficient_data";
         };
+        /** ProfileResponse */
+        ProfileResponse: {
+            /** Created At */
+            created_at: string;
+            /** Daily Calorie Target */
+            daily_calorie_target: number;
+            /** Id */
+            id: number;
+            /** Protein Target */
+            protein_target?: number | null;
+            /** Target Weight */
+            target_weight?: number | null;
+            /** Updated At */
+            updated_at: string;
+            /** Weekly Workout Target */
+            weekly_workout_target?: number | null;
+        };
+        /** ProfileUpdate */
+        ProfileUpdate: {
+            /**
+             * Daily Calorie Target
+             * @default 2000
+             */
+            daily_calorie_target: number;
+            /** Protein Target */
+            protein_target?: number | null;
+            /** Target Weight */
+            target_weight?: number | null;
+            /** Weekly Workout Target */
+            weekly_workout_target?: number | null;
+        };
         /** ReasonItem */
         ReasonItem: {
             /** Code */
@@ -362,6 +431,8 @@ export interface components {
             data_points: number;
             /** Message */
             message?: string | null;
+            /** Missing Dates */
+            missing_dates?: string[];
             /** Missing Days */
             missing_days: number;
             /** Reasons */
@@ -375,6 +446,8 @@ export interface components {
         };
         /** SummaryPayload */
         SummaryPayload: {
+            /** Factor Contributions */
+            factor_contributions?: components["schemas"]["FactorContribution"][];
             /** Insight */
             insight: string;
             /**
@@ -391,6 +464,8 @@ export interface components {
         SummaryResponse: {
             plateau: components["schemas"]["PlateauResponse"];
             reasons: components["schemas"]["ReasonsResponse"];
+            /** Recommendations */
+            recommendations?: components["schemas"]["ActionRecommendation"][];
             summary: components["schemas"]["SummaryPayload"];
         };
         /** TrendPoint */
@@ -425,6 +500,20 @@ export interface components {
             msg: string;
             /** Error Type */
             type: string;
+        };
+        /** WeeklyReportResponse */
+        WeeklyReportResponse: {
+            metrics: components["schemas"]["DashboardResponse"];
+            /**
+             * Plateau Status
+             * @enum {string}
+             */
+            plateau_status: "losing" | "plateau" | "gaining" | "insufficient_data";
+            /** Reasons */
+            reasons: components["schemas"]["ReasonItem"][];
+            /** Recommendations */
+            recommendations: components["schemas"]["ActionRecommendation"][];
+            summary: components["schemas"]["SummaryPayload"];
         };
     };
     responses: never;
@@ -509,7 +598,7 @@ export interface operations {
     get_summary_api_analytics_summary_get: {
         parameters: {
             query?: {
-                calorie_target?: number;
+                calorie_target?: number | null;
             };
             header?: never;
             path?: never;
@@ -745,7 +834,82 @@ export interface operations {
                     [name: string]: unknown;
                 };
                 content: {
-                    "application/json": unknown;
+                    "application/json": {
+                        [key: string]: string;
+                    };
+                };
+            };
+        };
+    };
+    get_profile_api_profile_get: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ProfileResponse"];
+                };
+            };
+        };
+    };
+    put_profile_api_profile_put: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["ProfileUpdate"];
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ProfileResponse"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    get_weekly_report_api_report_weekly_get: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["WeeklyReportResponse"];
                 };
             };
         };
@@ -765,7 +929,9 @@ export interface operations {
                     [name: string]: unknown;
                 };
                 content: {
-                    "application/json": unknown;
+                    "application/json": {
+                        [key: string]: string;
+                    };
                 };
             };
         };

@@ -20,6 +20,9 @@ frontend/dist/
 frontend/dist-ssr/
 frontend/*.local
 frontend/.npm-cache/
+.npm-cache/
+frontend/coverage/
+frontend/test-results/
 
 # Python (backend)
 __pycache__/

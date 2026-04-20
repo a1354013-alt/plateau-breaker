@@ -228,4 +228,49 @@ describe('analytics store', () => {
     store.dismissStaleDataWarning()
     expect(store.staleDataWarning).toBe(null)
   })
+
+  it('fetchAnalysisBundle populates summary and calorieTarget', async () => {
+    const store = useAnalyticsStore()
+
+    const summaryMock = vi.mocked(analyticsApi.summary)
+    summaryMock.mockResolvedValueOnce(
+      wrap({
+        plateau: {
+          status: 'plateau',
+          rule_a: true,
+          rule_b: true,
+          last7_avg: 75,
+          prev7_avg: 75,
+          avg_change: 0,
+          last7_fluctuation: 0.2,
+          last7_min: 74.9,
+          last7_max: 75.1,
+          data_completeness: 1,
+          message: null,
+        },
+        reasons: {
+          status: 'ok',
+          message: null,
+          reasons: [],
+          all_reasons: [],
+          data_points: 7,
+          missing_days: 0,
+        },
+        summary: {
+          text: 'ok',
+          insight: '',
+          status: 'ok',
+          top_reasons: [],
+        },
+        recommendations: [],
+      } satisfies SummaryData),
+    )
+
+    await store.fetchAnalysisBundle(2100)
+
+    expect(summaryMock).toHaveBeenCalledWith(2100)
+    expect(store.calorieTarget).toBe(2100)
+    expect(store.summary?.summary.text).toBe('ok')
+    expect(store.summaryStatus.error).toBe(null)
+  })
 })

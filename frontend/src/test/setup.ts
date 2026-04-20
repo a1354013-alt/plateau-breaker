@@ -4,6 +4,22 @@ Object.defineProperty(HTMLCanvasElement.prototype, 'getContext', {
   value: () => null,
 })
 
+// PrimeVue components (e.g. DatePicker) may use matchMedia for responsive behavior.
+// JSDOM doesn't provide it, so we stub a minimal implementation.
+Object.defineProperty(window, 'matchMedia', {
+  writable: true,
+  value: (query: string) => ({
+    matches: false,
+    media: query,
+    onchange: null,
+    addListener: () => undefined,
+    removeListener: () => undefined,
+    addEventListener: () => undefined,
+    removeEventListener: () => undefined,
+    dispatchEvent: () => false,
+  }),
+})
+
 // Prevent Chart.js from trying to create real charts in unit tests.
 // Tests should verify state/UI logic, not Chart.js rendering internals.
 import { vi } from 'vitest'

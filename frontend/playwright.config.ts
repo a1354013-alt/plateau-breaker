@@ -7,7 +7,7 @@ export default defineConfig({
     screenshot: 'only-on-failure',
   },
   webServer: {
-    command: 'npm run build && npm run preview -- --host 127.0.0.1 --port 4173',
+    command: 'node ./scripts/e2e-webserver.mjs',
     port: 4173,
     reuseExistingServer: !process.env.CI,
   },

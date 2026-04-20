@@ -297,33 +297,45 @@ async function onPage(event: DataTablePageEvent) {
 }
 
 function dateFromRouteQuery(raw: unknown): Date | null {
-  if (typeof raw !== 'string') return null
-  if (raw === 'today') {
+  const value = Array.isArray(raw) ? raw[0] : raw
+  if (typeof value !== 'string') return null
+  if (value === 'today') {
     const now = new Date()
     return new Date(
       `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, '0')}-${String(now.getDate()).padStart(2, '0')}T00:00:00`,
     )
   }
-  if (!/^\\d{4}-\\d{2}-\\d{2}$/.test(raw)) return null
-  return new Date(`${raw}T00:00:00`)
+  if (!/^\d{4}-\d{2}-\d{2}$/.test(value)) return null
+  return new Date(`${value}T00:00:00`)
+}
+
+async function handleDateQuery() {
+  const d = dateFromRouteQuery(route.query.date)
+  if (!d) return
+
+  const queryWithoutDate: Record<string, string | string[] | null | undefined> = { ...route.query }
+  delete queryWithoutDate.date
+  await router.replace({ path: route.path, query: queryWithoutDate })
+
+  openForm(null)
+  form.record_date = d
+  await nextTick()
+  const inputEl = weightInputRef.value?.$el?.querySelector('input') as HTMLInputElement | null
+  inputEl?.focus()
 }
 
 watch(
-  () => route.query.date,
-  async (rawDate) => {
-    const d = dateFromRouteQuery(rawDate)
-    if (!d) return
-    openForm(null)
-    form.record_date = d
-    await nextTick()
-    const inputEl = weightInputRef.value?.$el?.querySelector('input') as HTMLInputElement | null
-    inputEl?.focus()
-    void router.replace({ query: { ...route.query, date: undefined } })
+  () => route.fullPath,
+  () => {
+    void handleDateQuery()
   },
   { immediate: true },
 )
 
-onMounted(loadRecords)
+onMounted(() => {
+  void handleDateQuery()
+  void loadRecords()
+})
 </script>
 
 <style scoped>

@@ -3,7 +3,7 @@ from __future__ import annotations
 import os
 import sys
 from pathlib import Path
-from tempfile import TemporaryDirectory
+from tempfile import mkdtemp
 from typing import Generator
 
 import pytest
@@ -14,11 +14,20 @@ if str(backend_dir) not in sys.path:
     sys.path.insert(0, str(backend_dir))
 
 # Ensure app-level smoke tests (importing app.main) never write to the repo tree.
-_pytest_tmp_db_dir = TemporaryDirectory(prefix="plateaubreaker_pytest_")
+_pytest_tmp_db_dir = Path(mkdtemp(prefix="plateaubreaker_pytest_"))
 os.environ.setdefault(
     "PLATEAUBREAKER_DB_PATH",
-    str((Path(_pytest_tmp_db_dir.name) / "plateaubreaker_pytest.sqlite3").resolve()),
+    str((_pytest_tmp_db_dir / "plateaubreaker_pytest.sqlite3").resolve()),
 )
+
+
+@pytest.fixture(scope="session", autouse=True)
+def _dispose_cached_engines() -> Generator[None, None, None]:
+    yield
+    # Ensure SQLite files are not left locked (Windows) after the test run.
+    from app.database import dispose_engine
+
+    dispose_engine()
 
 
 @pytest.fixture()

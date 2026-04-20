@@ -54,5 +54,34 @@ describe('services/api axios wiring', () => {
     expect(axiosInstance.get).toHaveBeenCalledWith('/api/analytics/reasons', {
       params: { calorie_target: 2000 },
     })
+
+    mod.analyticsApi.dashboard()
+    expect(axiosInstance.get).toHaveBeenCalledWith('/api/analytics/dashboard')
+
+    mod.analyticsApi.trends(14)
+    expect(axiosInstance.get).toHaveBeenCalledWith('/api/analytics/trends', { params: { days: 14 } })
+
+    mod.analyticsApi.plateau()
+    expect(axiosInstance.get).toHaveBeenCalledWith('/api/analytics/plateau')
+
+    mod.analyticsApi.summary()
+    expect(axiosInstance.get).toHaveBeenCalledWith('/api/analytics/summary', { params: {} })
+
+    mod.analyticsApi.summary(2100)
+    expect(axiosInstance.get).toHaveBeenCalledWith('/api/analytics/summary', { params: { calorie_target: 2100 } })
+
+    mod.analyticsApi.weeklyReport()
+    expect(axiosInstance.get).toHaveBeenCalledWith('/api/report/weekly')
+
+    mod.profileApi.get()
+    expect(axiosInstance.get).toHaveBeenCalledWith('/api/profile')
+
+    mod.profileApi.update({
+      target_weight: null,
+      daily_calorie_target: 2000,
+      protein_target: null,
+      weekly_workout_target: null,
+    })
+    expect(axiosInstance.put).toHaveBeenCalledWith('/api/profile', expect.any(Object))
   })
 })

@@ -3,7 +3,7 @@ from __future__ import annotations
 from datetime import date, timedelta
 
 from app.models.health_record import HealthRecord
-from app.rules import detect_plateau, analyze_reasons, generate_summary, generate_recommendations
+from app.rules import analyze_reasons, detect_plateau, generate_recommendations, generate_summary
 from app.schemas.analytics import SummaryResponse
 
 

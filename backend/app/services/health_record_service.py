@@ -1,5 +1,5 @@
 from datetime import date, timedelta
-from typing import Optional
+from typing import Any, Optional, cast
 
 from fastapi import HTTPException
 from sqlalchemy import func
@@ -113,10 +113,10 @@ def get_records_by_days(session: Session, days: int, *, anchor_date: Optional[da
     query = select(HealthRecord).where(
         HealthRecord.record_date >= start_date,
         HealthRecord.record_date <= end_date,
-    ).order_by(HealthRecord.record_date)
+    ).order_by(cast(Any, HealthRecord.record_date))
     return list(session.exec(query).all())
 
 
 def get_all_records_ordered(session: Session) -> list[HealthRecord]:
-    query = select(HealthRecord).order_by(HealthRecord.record_date)
+    query = select(HealthRecord).order_by(cast(Any, HealthRecord.record_date))
     return list(session.exec(query).all())

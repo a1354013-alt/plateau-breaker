@@ -4,11 +4,8 @@ from datetime import date
 
 from fastapi.testclient import TestClient
 
-from app.main import app
 
-
-def test_full_analysis_flow():
-    client = TestClient(app)
+def test_full_analysis_flow(client: TestClient) -> None:
     today = date.today().isoformat()
 
     create_res = client.post('/api/health-records', json={

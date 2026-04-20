@@ -11,10 +11,12 @@ router = APIRouter(prefix="/api/profile", tags=["Profile"])
 
 
 @router.get("", response_model=ProfileResponse)
-def get_profile(session: Session = Depends(get_session)):
-    return profile_service.get_or_create_profile(session)
+def get_profile(session: Session = Depends(get_session)) -> ProfileResponse:
+    profile = profile_service.get_or_create_profile(session)
+    return ProfileResponse.model_validate(profile)
 
 
 @router.put("", response_model=ProfileResponse)
-def put_profile(data: ProfileUpdate, session: Session = Depends(get_session)):
-    return profile_service.update_profile(session, data)
+def put_profile(data: ProfileUpdate, session: Session = Depends(get_session)) -> ProfileResponse:
+    profile = profile_service.update_profile(session, data)
+    return ProfileResponse.model_validate(profile)

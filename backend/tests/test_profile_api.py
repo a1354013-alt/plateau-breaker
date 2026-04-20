@@ -1,7 +1,5 @@
 from __future__ import annotations
 
-from datetime import date
-
 from fastapi import FastAPI
 from fastapi.testclient import TestClient
 from sqlalchemy.pool import StaticPool
@@ -9,7 +7,6 @@ from sqlmodel import Session, SQLModel, create_engine
 
 from app.api.profile import router as profile_router
 from app.database import get_session
-from app.models import Profile
 
 
 def make_client() -> TestClient:

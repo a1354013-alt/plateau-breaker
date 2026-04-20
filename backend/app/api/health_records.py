@@ -3,6 +3,7 @@ from typing import Optional
 
 from fastapi import APIRouter, Depends, HTTPException, Query
 from sqlmodel import Session
+from starlette.responses import Response
 
 from app.database import get_session
 from app.schemas.health_record import (
@@ -20,9 +21,9 @@ router = APIRouter(prefix="/api/health-records", tags=["Health Records"])
 def create_health_record(
     data: HealthRecordCreate,
     session: Session = Depends(get_session),
-):
+) -> HealthRecordResponse:
     record = svc.create_record(session, data)
-    return record
+    return HealthRecordResponse.model_validate(record)
 
 
 @router.get("", response_model=HealthRecordListResponse)
@@ -32,22 +33,25 @@ def list_health_records(
     start_date: Optional[date] = Query(default=None),
     end_date: Optional[date] = Query(default=None),
     session: Session = Depends(get_session),
-):
+) -> HealthRecordListResponse:
     if start_date and end_date and start_date > end_date:
         raise HTTPException(status_code=422, detail="start_date must be <= end_date")
     records, total = svc.get_records(session, skip, limit, start_date, end_date)
-    return HealthRecordListResponse(total=total, records=records)
+    return HealthRecordListResponse(
+        total=total,
+        records=[HealthRecordResponse.model_validate(r) for r in records],
+    )
 
 
 @router.get("/{record_id}", response_model=HealthRecordResponse)
 def get_health_record(
     record_id: int,
     session: Session = Depends(get_session),
-):
+) -> HealthRecordResponse:
     record = svc.get_record(session, record_id)
     if not record:
         raise HTTPException(status_code=404, detail="Record not found")
-    return record
+    return HealthRecordResponse.model_validate(record)
 
 
 @router.put("/{record_id}", response_model=HealthRecordResponse)
@@ -55,20 +59,19 @@ def update_health_record(
     record_id: int,
     data: HealthRecordUpdate,
     session: Session = Depends(get_session),
-):
+) -> HealthRecordResponse:
     record = svc.update_record(session, record_id, data)
     if not record:
         raise HTTPException(status_code=404, detail="Record not found")
-    return record
+    return HealthRecordResponse.model_validate(record)
 
 
 @router.delete("/{record_id}", status_code=204)
 def delete_health_record(
     record_id: int,
     session: Session = Depends(get_session),
-):
+) -> Response:
     success = svc.delete_record(session, record_id)
     if not success:
         raise HTTPException(status_code=404, detail="Record not found")
-    from fastapi.responses import Response
     return Response(status_code=204)

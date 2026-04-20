@@ -1,5 +1,5 @@
 from datetime import date, datetime
-from typing import Optional
+from typing import Optional, Self
 
 from pydantic import BaseModel, Field, field_serializer, field_validator, model_validator
 
@@ -34,7 +34,7 @@ class HealthRecordCreate(BaseModel):
 
     @field_validator("weight")
     @classmethod
-    def weight_must_be_reasonable(cls, v):
+    def weight_must_be_reasonable(cls, v: float) -> float:
         if v <= 0 or v > 500:
             raise ValueError("Weight must be between 0 and 500 kg")
         return round(v, 2)
@@ -78,14 +78,14 @@ class HealthRecordUpdate(BaseModel):
         return v
 
     @model_validator(mode="after")
-    def disallow_explicit_null_for_required_fields(self):
+    def disallow_explicit_null_for_required_fields(self) -> Self:
         """Distinguish 'field not provided' vs 'field provided as null'.
 
         For non-nullable DB columns, explicit null in an update payload must be rejected
         with a 422, rather than failing at commit time.
         """
 
-        fields_set = getattr(self, "__pydantic_fields_set__", set())
+        fields_set: set[str] = set(getattr(self, "__pydantic_fields_set__", set()))
         non_nullable = ("record_date", "weight", "sleep_hours", "calories", "exercise_minutes")
         for field in non_nullable:
             if field in fields_set and getattr(self, field) is None:
@@ -94,7 +94,7 @@ class HealthRecordUpdate(BaseModel):
 
     @field_validator("weight")
     @classmethod
-    def weight_must_be_reasonable(cls, v):
+    def weight_must_be_reasonable(cls, v: Optional[float]) -> Optional[float]:
         if v is not None and (v <= 0 or v > 500):
             raise ValueError("Weight must be between 0 and 500 kg")
         return round(v, 2) if v is not None else v

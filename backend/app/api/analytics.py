@@ -25,7 +25,7 @@ report_router = APIRouter(prefix="/api/report", tags=["Report"])
 def get_dashboard(
     session: Session = Depends(get_session),
     anchor: date = Depends(get_anchor_date),
-):
+) -> DashboardResponse:
     all_records = svc.get_all_records_ordered(session)
     last7 = svc.get_records_by_days(session, 7, anchor_date=anchor)
 
@@ -63,7 +63,7 @@ def get_trends(
     days: int = Query(default=30, ge=7, le=365),
     session: Session = Depends(get_session),
     anchor: date = Depends(get_anchor_date),
-):
+) -> TrendsResponse:
     records = svc.get_records_by_days(session, days, anchor_date=anchor)
 
     trend_data = [
@@ -89,7 +89,7 @@ def get_trends(
 def get_plateau(
     session: Session = Depends(get_session),
     anchor: date = Depends(get_anchor_date),
-):
+) -> PlateauResponse:
     all_records = svc.get_all_records_ordered(session)
     return detect_plateau(all_records, anchor_date=anchor)
 
@@ -99,7 +99,7 @@ def get_reasons(
     calorie_target: int = Query(default=2000, ge=1000, le=5000),
     session: Session = Depends(get_session),
     anchor: date = Depends(get_anchor_date),
-):
+) -> ReasonsResponse:
     all_records = svc.get_all_records_ordered(session)
     return analyze_reasons(all_records, calorie_target, anchor_date=anchor)
 
@@ -109,7 +109,7 @@ def get_summary(
     calorie_target: int | None = Query(default=None, ge=1000, le=5000),
     session: Session = Depends(get_session),
     anchor: date = Depends(get_anchor_date),
-):
+) -> SummaryResponse:
     all_records = svc.get_all_records_ordered(session)
     profile = get_or_create_profile(session)
     effective_calorie_target = calorie_target or profile.daily_calorie_target
@@ -127,7 +127,7 @@ def get_summary(
 def get_weekly_report(
     session: Session = Depends(get_session),
     anchor: date = Depends(get_anchor_date),
-):
+) -> WeeklyReportResponse:
     summary_payload = get_summary(session=session, anchor=anchor)
     metrics = get_dashboard(session=session, anchor=anchor)
 
